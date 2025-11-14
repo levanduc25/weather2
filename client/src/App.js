@@ -8,7 +8,7 @@ import Settings from './pages/Settings'; // Import Settings component
 import LoadingSpinner from './components/LoadingSpinner';
 import ErrorBoundary from './components/ErrorBoundary';
 import { initializeConnectionTest } from './utils/connectionTest';
-
+import CCCDRegister from './components/auth/CCCDRegister';
 // PrivateRoute component to protect authenticated routes
 const PrivateRoute = ({ children }) => {
   const { isAuthenticated, loading } = useAuth();
@@ -52,6 +52,7 @@ function App() {
             path="/settings" 
             element={<PrivateRoute><Settings /></PrivateRoute>} 
           />
+          <Route path="/register/cccd" element={<PrivateRoute><CCCDRegister /></PrivateRoute>} />
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
       </div>

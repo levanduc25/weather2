@@ -24,6 +24,44 @@ const userSchema = new mongoose.Schema({
     required: true,
     minlength: 6
   },
+  // New fields for CCCD registration
+  cccd: { 
+    type: String, 
+    unique: true,
+    sparse: true,
+    trim: true
+  },
+  dateOfBirth: {
+    type: Date,
+    required: function() { return this.cccd !== undefined; }
+  },
+  gender: {
+    type: String,
+    enum: ['Nam', 'Nữ', 'Khác', null],
+    default: null
+  },
+  address: {
+    type: String,
+    trim: true
+  },
+  // Additional user information
+  fullName: {
+    type: String,
+    trim: true
+  },
+  phoneNumber: {
+    type: String,
+    trim: true
+  },
+  isVerified: {
+    type: Boolean,
+    default: false
+  },
+  verificationToken: String,
+  verificationExpires: Date,
+  passwordResetToken: String,
+  passwordResetExpires: Date,
+  // Existing fields
   favoriteCities: [{
     name: {
       type: String,
@@ -113,15 +151,42 @@ userSchema.methods.comparePassword = async function(candidatePassword) {
   return bcrypt.compare(candidatePassword, this.password);
 };
 
-// Remove password from JSON output
+// Remove sensitive information from JSON output
 userSchema.methods.toJSON = function() {
   const user = this.toObject();
   delete user.password;
+  delete user.verificationToken;
+  delete user.verificationExpires;
+  delete user.passwordResetToken;
+  delete user.passwordResetExpires;
   return user;
 };
 
-// Add indexes for better performance (removed duplicate email and username indexes)
+// Indexes for better performance
 userSchema.index({ 'favoriteCities.name': 1, 'favoriteCities.country': 1 });
 userSchema.index({ 'searchHistory.searchedAt': -1 });
+userSchema.index({ cccd: 1 }); // Add index for CCCD field
+userSchema.index({ email: 1 }); // Ensure email is indexed
+userSchema.index({ username: 1 }); // Ensure username is indexed
+
+// Virtual for user's full name
+userSchema.virtual('displayName').get(function() {
+  return this.fullName || this.username;
+});
+
+// Method to get basic user info
+userSchema.methods.getPublicProfile = function() {
+  const user = this.toObject();
+  return {
+    id: user._id,
+    username: user.username,
+    email: user.email,
+    fullName: user.fullName,
+    dateOfBirth: user.dateOfBirth,
+    gender: user.gender,
+    preferences: user.preferences,
+    createdAt: user.createdAt
+  };
+};
 
 module.exports = mongoose.model('User', userSchema);
