@@ -20,6 +20,11 @@ import { useWeather } from '../contexts/WeatherContext';
 const WeatherContainer = styled.div`
   width: 100%;
   color: white;
+  background: linear-gradient(145deg, #1a237e 0%, #0d47a1 100%);
+  border-radius: 20px;
+  padding: 25px;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1);
+  border: 1px solid rgba(255, 255, 255, 0.1);
 `;
 
 const CurrentWeather = styled.div`
@@ -121,19 +126,22 @@ const LoadingSpinner = styled.div`
 `;
 
 const WeatherDetails = styled.div`
-  background: rgba(255, 255, 255, 0.1);
-  backdrop-filter: blur(10px);
-  border: 1px solid rgba(255, 255, 255, 0.2);
-  border-radius: 20px;
-  padding: 30px;
+  background: rgba(255, 255, 255, 0.08);
+  border-radius: 15px;
+  padding: 25px;
   margin-bottom: 30px;
+  backdrop-filter: blur(10px);
+  border: 1px solid rgba(255, 255, 255, 0.1);
 `;
 
 const DetailsHeader = styled.h3`
-  font-size: 1.5rem;
+  margin: 0 0 20px 0;
+  font-size: 1.8rem;
   font-weight: 600;
-  margin-bottom: 20px;
-  text-align: center;
+  color: #ffffff;
+  padding-bottom: 15px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+  text-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
 `;
 
 const DetailsGrid = styled.div`
@@ -146,14 +154,17 @@ const DetailItem = styled.div`
   display: flex;
   align-items: center;
   gap: 15px;
-  padding: 15px;
-  background: rgba(255, 255, 255, 0.1);
-  border-radius: 15px;
+  background: rgba(255, 255, 255, 0.08);
+  padding: 18px 20px;
+  border-radius: 12px;
   transition: all 0.3s ease;
-
+  backdrop-filter: blur(5px);
+  border: 1px solid rgba(255, 255, 255, 0.05);
+  
   &:hover {
     background: rgba(255, 255, 255, 0.15);
-    transform: translateY(-2px);
+    transform: translateY(-3px);
+    box-shadow: 0 4px 15px rgba(0, 0, 0, 0.1);
   }
 `;
 
@@ -195,22 +206,18 @@ const ForecastHeader = styled.h3`
 
 const HourlyForecast = styled.div`
   display: flex;
-  gap: 15px;
   overflow-x: auto;
-  padding-bottom: 10px;
+  gap: 15px;
+  padding: 20px 10px;
+  margin: 0 -10px 30px -10px;
   
   &::-webkit-scrollbar {
-    height: 6px;
-  }
-  
-  &::-webkit-scrollbar-track {
-    background: rgba(255, 255, 255, 0.1);
-    border-radius: 3px;
+    height: 8px;
   }
   
   &::-webkit-scrollbar-thumb {
-    background: rgba(255, 255, 255, 0.3);
-    border-radius: 3px;
+    background: rgba(255, 255, 255, 0.2);
+    border-radius: 10px;
   }
 `;
 
@@ -239,22 +246,23 @@ const HourlyIcon = styled.div`
   margin-bottom: 10px;
 `;
 
-const HourlyTemp = styled.div`
-  font-size: 1.2rem;
-  font-weight: 600;
+const HourlyTemp = styled.span`
+  font-weight: 700;
+  font-size: 1.3rem;
+  margin: 8px 0;
+  color: #ffd700;  /* Màu vàng cho nhiệt độ */
 `;
 
-const HourlyCondition = styled.div`
-  font-size: 0.8rem;
-  opacity: 0.8;
-  margin-top: 5px;
+const HourlyCondition = styled.span`
+  color: #bbdefb;  /* Màu xanh nhạt cho mô tả */
+  font-weight: 500;
 `;
 
 const DailyForecast = styled.div`
   display: flex;
   flex-direction: column;
-  gap: 15px;
-  margin-top: 20px;
+  gap: 12px;
+  margin-top: 15px;
 `;
 
 const DailyItem = styled.div`
@@ -272,11 +280,11 @@ const DailyItem = styled.div`
   }
 `;
 
-const DailyDate = styled.div`
-  font-size: 1rem;
-  font-weight: 500;
-  min-width: 100px;
+const DailyDate = styled.span`
+  color: #ffffff;  /* Màu trắng cho ngày */
+  font-weight: 600;
 `;
+
 
 const DailyIcon = styled.div`
   font-size: 1.5rem;
@@ -289,11 +297,9 @@ const DailyCondition = styled.div`
   opacity: 0.8;
 `;
 
-const DailyTemp = styled.div`
-  font-size: 1.1rem;
-  font-weight: 600;
-  min-width: 80px;
-  text-align: right;
+const DailyTemp = styled.span`
+  color: #ffd700;  /* Màu vàng cho nhiệt độ */
+  font-weight: 700;
 `;
 
 const weatherIcons = {
@@ -384,7 +390,7 @@ const WeatherDisplay = memo(({ weather, forecast, isDetailsPanel = false }) => {
             </DetailItem>
 
             <DetailItem>
-              <DetailIcon color="#4ecdc4">
+              <DetailIcon color="#4e50cdff">
                 <FiThermometer />
               </DetailIcon>
               <DetailContent>
@@ -394,7 +400,7 @@ const WeatherDisplay = memo(({ weather, forecast, isDetailsPanel = false }) => {
             </DetailItem>
 
             <DetailItem>
-              <DetailIcon color="#45b7d1">
+              <DetailIcon color="#4586d1ff">
                 <FiDroplet />
               </DetailIcon>
               <DetailContent>
@@ -457,19 +463,48 @@ const WeatherDisplay = memo(({ weather, forecast, isDetailsPanel = false }) => {
 
             {daily && daily.length > 0 && (
               <DailyForecast>
-                {daily.slice(0, 5).map((day, index) => (
-                  <DailyItem key={index}>
-                    <DailyDate>{formatDate(day.date)}</DailyDate>
-                    <DailyIcon>
-                      {getWeatherIcon(day.weather.main)}
-                    </DailyIcon>
-                    <DailyCondition>{day.weather.description}</DailyCondition>
-                    <DailyTemp>
-                      {day.temperature.max}° / {day.temperature.min}°
-                    </DailyTemp>
-                  </DailyItem>
-                ))}
-              </DailyForecast>
+  {daily.slice(0, 5).map((day, index) => (
+    <DailyItem 
+      key={index}
+      style={{
+        background: 'linear-gradient(135deg, #1e3a8a 0%, #1e40af 100%)',
+        borderRadius: '12px',
+        padding: '12px 15px',
+        margin: '8px 0',
+        boxShadow: '0 4px 6px rgba(0, 0, 0, 0.1)',
+        border: '1px solid rgba(255, 255, 255, 0.15)'
+      }}
+    >
+      <DailyDate style={{ 
+        color: '#ffffff',
+        fontWeight: '700',
+        fontSize: '1.1rem',
+        marginBottom: '8px'
+      }}>
+        {formatDate(day.date)}
+      </DailyDate>
+      <DailyIcon style={{ filter: 'drop-shadow(0 2px 4px rgba(0,0,0,0.3))' }}>
+        {getWeatherIcon(day.weather.main)}
+      </DailyIcon>
+      <DailyCondition style={{ 
+        color: '#e2e8f0',
+        margin: '8px 0',
+        fontWeight: '500',
+        fontSize: '1rem'
+      }}>
+        {day.weather.description}
+      </DailyCondition>
+      <DailyTemp style={{ 
+        color: '#ffd700',
+        fontWeight: 'bold',
+        fontSize: '1.2rem',
+        textShadow: '0 1px 2px rgba(0,0,0,0.3)'
+      }}>
+        {day.temperature.max}° / {day.temperature.min}°
+      </DailyTemp>
+    </DailyItem>
+  ))}
+</DailyForecast>
             )}
           </ForecastSection>
         )}
@@ -534,7 +569,7 @@ const WeatherDisplay = memo(({ weather, forecast, isDetailsPanel = false }) => {
               padding: '12px 20px',
               background: 'rgba(255, 255, 255, 0.1)',
               borderRadius: '15px',
-              color: 'rgba(255, 255, 255, 0.8)',
+              color: 'rgba(92, 107, 133, 0.8)',
               fontSize: '1rem'
             }}>
               <FiHeart style={{ marginRight: '8px' }} />
