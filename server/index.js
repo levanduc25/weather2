@@ -10,6 +10,7 @@ const authRoutes = require('./routes/auth');
 const weatherRoutes = require('./routes/weather');
 const userRoutes = require('./routes/user');
 const discordRoutes = require('./routes/discord');
+const cccdRoutes = require('./routes/cccd');
 
 const app = express();
 
@@ -42,6 +43,7 @@ app.use(express.urlencoded({ extended: true }));
 
 // Routes
 app.use('/api/auth', authRoutes);
+app.use('/api/cccd', cccdRoutes);
 app.use('/api/weather', weatherRoutes);
 app.use('/api/user', userRoutes);
 app.use('/api/discord', discordRoutes);

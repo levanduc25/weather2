@@ -9,10 +9,13 @@ import {
   FiLogOut,
   FiMenu,
   FiX,
-  FiSettings // Import FiSettings icon
+  FiSettings,
+  FiMoon,
+  FiSun
 } from 'react-icons/fi';
 import { FaDiscord } from 'react-icons/fa';
-import { useNavigate } from 'react-router-dom'; // Import useNavigate
+import { useNavigate } from 'react-router-dom';
+import { useTheme } from '../contexts/ThemeContext';
 
 const HeaderContainer = styled.header`
   position: fixed;
@@ -21,9 +24,9 @@ const HeaderContainer = styled.header`
   right: 0;
   z-index: 1000;
   padding: 20px 40px;
-  background: var(--header-background-light);
+  background: var(--header-background);
   backdrop-filter: blur(10px);
-  border-bottom: 1px solid var(--border-color-light);
+  border-bottom: 1px solid var(--border-color);
   
   @media (max-width: 768px) {
     padding: 15px 20px;
@@ -41,7 +44,7 @@ const HeaderContent = styled.div`
 const Logo = styled.div`
   display: flex;
   align-items: center;
-  color: var(--text-color-light);
+  color: var(--text-color);
   font-size: 1.8rem;
   font-weight: bold;
   text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.3);
@@ -67,15 +70,15 @@ const SearchBar = styled.div`
 const SearchInput = styled.input`
   width: 100%;
   padding: 12px 20px 12px 45px;
-  border: 1px solid var(--border-color-light);
+  border: 1px solid var(--border-color);
   border-radius: 25px;
-  background: var(--header-background-light);
-  color: var(--text-color-light);
+  background: var(--header-background);
+  color: var(--text-color);
   font-size: 16px;
   transition: all 0.3s ease;
 
   &::placeholder {
-    color: var(--text-color-light);
+    color: var(--text-color);
   }
 
   &:focus {
@@ -83,15 +86,6 @@ const SearchInput = styled.input`
     border-color: rgba(255, 255, 255, 0.5);
     background: rgba(255, 255, 255, 0.15);
   }
-`;
-
-const SearchIcon = styled.div`
-  position: absolute;
-  left: 15px;
-  top: 50%;
-  transform: translateY(-50%);
-  color: var(--text-color-light);
-  font-size: 18px;
 `;
 
 const ActionButtons = styled.div`
@@ -109,10 +103,10 @@ const Button = styled.button`
   align-items: center;
   gap: 8px;
   padding: 10px 15px;
-  background: var(--header-background-light);
-  border: 1px solid var(--border-color-light);
+  background: var(--header-background);
+  border: 1px solid var(--border-color);
   border-radius: 10px;
-  color: var(--text-color-light);
+  color: var(--text-color);
   font-size: 14px;
   font-weight: 500;
   cursor: pointer;
@@ -142,10 +136,10 @@ const UserButton = styled.button`
   align-items: center;
   gap: 8px;
   padding: 10px 15px;
-  background: var(--header-background-light);
-  border: 1px solid var(--border-color-light);
+  background: var(--header-background);
+  border: 1px solid var(--border-color);
   border-radius: 10px;
-  color: var(--text-color-light);
+  color: var(--text-color);
   font-size: 14px;
   font-weight: 500;
   cursor: pointer;
@@ -161,9 +155,9 @@ const DropdownMenu = styled(motion.div)`
   top: 100%;
   right: 0;
   margin-top: 10px;
-  background: var(--card-background-light);
+  background: var(--card-background);
   backdrop-filter: blur(10px);
-  border: 1px solid var(--border-color-light);
+  border: 1px solid var(--border-color);
   border-radius: 10px;
   padding: 10px 0;
   min-width: 200px;
@@ -175,7 +169,7 @@ const DropdownItem = styled.button`
   padding: 12px 20px;
   background: none;
   border: none;
-  color: var(--text-color-light);
+  color: var(--text-color);
   font-size: 14px;
   text-align: left;
   cursor: pointer;
@@ -193,7 +187,7 @@ const MobileMenuButton = styled.button`
   display: none;
   background: none;
   border: none;
-  color: var(--text-color-light);
+  color: var(--text-color);
   font-size: 24px;
   cursor: pointer;
   
@@ -223,13 +217,24 @@ const MobileMenu = styled(motion.div)`
 `;
 
 const MobileMenuContent = styled.div`
-  background: var(--card-background-light);
+  background: var(--card-background);
   backdrop-filter: blur(10px);
-  border: 1px solid var(--border-color-light);
+  border: 1px solid var(--border-color);
   border-radius: 20px;
   padding: 40px;
   width: 90%;
   max-width: 400px;
+`;
+const SearchIcon = styled.div`
+  position: absolute;
+  left: 15px;
+  top: 50%;
+  transform: translateY(-50%);
+  color: var(--text-color);
+  display: flex;
+  align-items: center;
+  font-size: 18px;
+  pointer-events: none;
 `;
 
 const CloseButton = styled.button`
@@ -238,9 +243,35 @@ const CloseButton = styled.button`
   right: 20px;
   background: none;
   border: none;
-  color: var(--text-color-light);
+  color: var(--text-color);
   font-size: 24px;
   cursor: pointer;
+`;
+
+const ThemeToggle = styled.button`
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 40px;
+  height: 40px;
+  background: var(--transparent-bg);
+  border: 1px solid var(--border-color);
+  border-radius: 10px;
+  color: var(--text-color);
+  cursor: pointer;
+  font-size: 18px;
+  transition: all var(--transition-fast);
+
+  &:hover {
+    background: var(--hover-bg);
+    transform: rotate(20deg);
+  }
+  
+  @media (max-width: 768px) {
+    width: 36px;
+    height: 36px;
+    font-size: 16px;
+  }
 `;
 
 const Header = ({ 
@@ -253,7 +284,8 @@ const Header = ({
 }) => {
   const [showUserMenu, setShowUserMenu] = useState(false);
   const [showMobileMenu, setShowMobileMenu] = useState(false);
-  const navigate = useNavigate(); // Initialize useNavigate
+  const navigate = useNavigate();
+  const { theme, toggleTheme } = useTheme();
 
   const handleUserMenuToggle = () => {
     setShowUserMenu(!showUserMenu);
@@ -303,10 +335,14 @@ const Header = ({
             <span>Discord</span>
           </Button>
 
+          <ThemeToggle onClick={toggleTheme} title={`Switch to ${theme === 'light' ? 'dark' : 'light'} mode`}>
+            {theme === 'light' ? <FiMoon /> : <FiSun />}
+          </ThemeToggle>
+
           <UserMenu>
             <UserButton onClick={handleUserMenuToggle}>
               <FiUser />
-              <span>{user?.username}</span>
+              <span>{user?.fullName}</span>
             </UserButton>
 
             {showUserMenu && (
@@ -371,7 +407,12 @@ const Header = ({
                 <span>Current Location</span>
               </Button>
 
-              <Button onClick={() => { handleSettingsClick(); setShowMobileMenu(false); }}> {/* New Settings Item in Mobile Menu */}
+              <Button onClick={() => { toggleTheme(); setShowMobileMenu(false); }}>
+                {theme === 'light' ? <FiMoon /> : <FiSun />}
+                <span>{theme === 'light' ? 'Dark Mode' : 'Light Mode'}</span>
+              </Button>
+
+              <Button onClick={() => { handleSettingsClick(); setShowMobileMenu(false); }}>
                 <FiSettings />
                 <span>Settings</span>
               </Button>

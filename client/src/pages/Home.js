@@ -5,6 +5,8 @@ import styled from 'styled-components';
 import { motion, AnimatePresence } from 'framer-motion';
 import Header from '../components/Header';
 import WeatherDisplay from '../components/WeatherDisplay';
+import SuggestionCard from '../components/SuggestionCard';
+import { getSuggestions } from '../utils/suggestions';
 import SearchModal from '../components/SearchModal';
 import FavoritesModal from '../components/FavoritesModal';
 import DiscordSettings from '../components/DiscordSettings';
@@ -26,15 +28,11 @@ const weatherGradients = {
 
 const HomeContainer = styled.div`
   min-height: 100vh;
-  background: ${props => {
-    const weatherType = props.weather?.current?.weather?.main?.toLowerCase();
-    const gradient = weatherGradients[weatherType] || weatherGradients.default;
-    return gradient; // Keep weather-specific gradients
-  }};
-  transition: background 0.5s ease;
+  background: var(--background-color);
+  transition: background 0.5s ease, color 0.5s ease;
   position: relative;
   overflow: hidden;
-  color: var(--text-color-light); /* Apply text color from theme */
+  color: var(--text-color); /* Apply text color from theme */
 `;
 
 const SnowEffect = styled.div`
@@ -95,9 +93,15 @@ const LeftPanel = styled(motion.div)`
   padding: 40px;
   display: flex;
   flex-direction: column;
-  justify-content: center;
+  justify-content: flex-start;
   align-items: center;
-  color: var(--text-color-light); /* Apply text color from theme */
+  color: var(--text-color); /* Apply text color from theme */
+
+  /* constrain the main card inside left panel */
+  & > div {
+    width: 100%;
+    max-width: 920px;
+  }
   
   @media (max-width: 768px) {
     padding: 20px;
@@ -135,22 +139,22 @@ const WelcomeMessage = styled.div`
     font-weight: bold;
     margin-bottom: 10px;
     text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.3);
-    color: var(--text-color-light); /* Apply text color from theme */
+    color: var(--text-color); /* Apply text color from theme */
   }
   
   p {
     font-size: 1.2rem;
     opacity: 0.9;
-    color: var(--text-color-light); /* Apply text color from theme */
+    color: var(--text-color); /* Apply text color from theme */
   }
 `;
 
 const GetStartedButton = styled.button`
-  background: var(--header-background-light);
-  border: 2px solid var(--border-color-light);
+  background: var(--header-background);
+  border: 2px solid var(--border-color);
   border-radius: 15px;
   padding: 15px 30px;
-  color: var(--text-color-light);
+  color: var(--text-color);
   font-size: 1.1rem;
   font-weight: 600;
   cursor: pointer;
@@ -232,16 +236,28 @@ const Home = () => {
           initial={{ opacity: 0, x: -50 }}
           animate={{ opacity: 1, x: 0 }}
           transition={{ duration: 0.5 }}
+          center={!currentWeather}
         >
           {currentWeather ? (
-            <WeatherDisplay 
-              weather={currentWeather}
-              forecast={forecast}
-            />
+            <>
+              <WeatherDisplay 
+                weather={currentWeather}
+                forecast={forecast}
+              />
+
+              {/* compute suggestions (MVP) and render below the main card */}
+              {(() => {
+                const suggestions = getSuggestions({ current: currentWeather.current || currentWeather, forecast: forecast || currentWeather?.forecast });
+                if (suggestions && suggestions.length) {
+                  return <div style={{ marginTop: 16 }}><SuggestionCard suggestion={suggestions[0]} /></div>;
+                }
+                return null;
+              })()}
+            </>
           ) : (
             <div>
               <WelcomeMessage>
-                <h1>Welcome, {user?.username}!</h1>
+                <h1>Welcome, {user?.fullName}!</h1>
                 <p>Get started by searching for a city or using your current location</p>
               </WelcomeMessage>
               <GetStartedButton onClick={() => setShowSearchModal(true)}>

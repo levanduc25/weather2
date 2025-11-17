@@ -52,9 +52,22 @@ export const WeatherProvider = ({ children }) => {
   // Cache for API requests to prevent duplicate calls
   const requestCache = useRef(new Map());
   const searchCache = useRef(new Map());
+  const sessionCacheKey = 'weather_request_cache_v1';
+  // Try to hydrate cache from sessionStorage
+  try {
+    const stored = sessionStorage.getItem(sessionCacheKey);
+    if (stored) {
+      const parsed = JSON.parse(stored);
+      // parsed should be an object of cacheKey -> { data, expiresAt }
+      requestCache.current = new Map(Object.entries(parsed));
+    }
+  } catch (e) {
+    // ignore
+  }
   const lastSearchQuery = useRef('');
   const searchTimeoutRef = useRef(null);
   const activeRequests = useRef(new Map()); // Track active requests to prevent duplicates
+  const geolocationLastFetch = useRef({ timestamp: 0, data: null });
 
   const apiRequest = useCallback(async (apiCall, successAction, errorMessage, successMessage, requestKey) => {
     // Create a unique key for this request type
@@ -92,6 +105,13 @@ export const WeatherProvider = ({ children }) => {
       } finally {
         // Remove from active requests
         activeRequests.current.delete(key);
+        // persist a lightweight cache snapshot to sessionStorage to survive reloads
+        try {
+          const obj = Object.fromEntries(requestCache.current);
+          sessionStorage.setItem(sessionCacheKey, JSON.stringify(obj));
+        } catch (e) {
+          // ignore storage errors
+        }
       }
     })();
 
@@ -103,10 +123,30 @@ export const WeatherProvider = ({ children }) => {
   const getCurrentWeather = useCallback(async (lat, lon) => {
     // Check cache first
     const cacheKey = `current_${lat.toFixed(2)}_${lon.toFixed(2)}_${state.units}`;
+    // If cached and fresh, return immediately (stale-while-revalidate)
     if (requestCache.current.has(cacheKey)) {
       const cachedEntry = requestCache.current.get(cacheKey);
       if (cachedEntry.expiresAt > Date.now()) {
         dispatch({ type: 'SET_CURRENT_WEATHER', payload: cachedEntry.data });
+
+        // If cache is nearing expiry (<2 minutes), trigger background refresh
+        if (cachedEntry.expiresAt - Date.now() < 2 * 60 * 1000) {
+          const bgKey = `current_bg_refresh_${cacheKey}`;
+          if (!activeRequests.current.has(bgKey)) {
+            // Fire-and-forget refresh
+            apiRequest(
+              () => api.get('/weather/current', { params: { lat, lon, units: state.units } }),
+              (data) => {
+                requestCache.current.set(cacheKey, { data, expiresAt: Date.now() + (10 * 60 * 1000) });
+                return { type: 'SET_CURRENT_WEATHER', payload: data };
+              },
+              null,
+              null,
+              bgKey
+            ).catch(() => {});
+          }
+        }
+
         return cachedEntry.data;
       } else {
         // Remove expired cache entry
@@ -134,10 +174,29 @@ export const WeatherProvider = ({ children }) => {
   const getForecast = useCallback(async (lat, lon) => {
     // Check cache first
     const cacheKey = `forecast_${lat.toFixed(2)}_${lon.toFixed(2)}_${state.units}`;
+    // If cached and fresh, return immediately (stale-while-revalidate)
     if (requestCache.current.has(cacheKey)) {
       const cachedEntry = requestCache.current.get(cacheKey);
       if (cachedEntry.expiresAt > Date.now()) {
         dispatch({ type: 'SET_FORECAST', payload: cachedEntry.data });
+
+        // If cache is nearing expiry (<2 minutes), trigger background refresh
+        if (cachedEntry.expiresAt - Date.now() < 2 * 60 * 1000) {
+          const bgKey = `forecast_bg_refresh_${cacheKey}`;
+          if (!activeRequests.current.has(bgKey)) {
+            apiRequest(
+              () => api.get('/weather/forecast', { params: { lat, lon, units: state.units } }),
+              (data) => {
+                requestCache.current.set(cacheKey, { data, expiresAt: Date.now() + (10 * 60 * 1000) });
+                return { type: 'SET_FORECAST', payload: data };
+              },
+              null,
+              null,
+              bgKey
+            ).catch(() => {});
+          }
+        }
+
         return cachedEntry.data;
       } else {
         // Remove expired cache entry
@@ -161,6 +220,89 @@ export const WeatherProvider = ({ children }) => {
       requestKey
     );
   }, [apiRequest, state.units]);
+
+  // Combined fetch: return both current and forecast in a single logical call.
+  const getWeatherBundle = useCallback(async (lat, lon) => {
+    const bundleKey = `bundle_${lat.toFixed(2)}_${lon.toFixed(2)}_${state.units}`;
+
+    // Check session cache (requestCache) for bundle
+    if (requestCache.current.has(bundleKey)) {
+      const cached = requestCache.current.get(bundleKey);
+      if (cached.expiresAt > Date.now()) {
+        // populate both states
+        dispatch({ type: 'SET_CURRENT_WEATHER', payload: cached.data.current });
+        dispatch({ type: 'SET_FORECAST', payload: cached.data.forecast });
+
+        // background refresh if nearing expiry
+        if (cached.expiresAt - Date.now() < 2 * 60 * 1000) {
+          const bgKey = `bundle_bg_${bundleKey}`;
+          if (!activeRequests.current.has(bgKey)) {
+            apiRequest(
+              () => Promise.all([
+                api.get('/weather/current', { params: { lat, lon, units: state.units } }),
+                api.get('/weather/forecast', { params: { lat, lon, units: state.units } })
+              ]),
+              (responses) => {
+                // responses is an array of axios responses
+                const currentData = responses[0].data;
+                const forecastData = responses[1].data;
+                const data = { current: currentData, forecast: forecastData };
+                requestCache.current.set(bundleKey, { data, expiresAt: Date.now() + (10 * 60 * 1000) });
+                // update individual caches too
+                requestCache.current.set(`current_${lat.toFixed(2)}_${lon.toFixed(2)}_${state.units}`, { data: currentData, expiresAt: Date.now() + (10 * 60 * 1000) });
+                requestCache.current.set(`forecast_${lat.toFixed(2)}_${lon.toFixed(2)}_${state.units}`, { data: forecastData, expiresAt: Date.now() + (10 * 60 * 1000) });
+                return ({ type: 'SET_CURRENT_WEATHER', payload: currentData });
+              },
+              null,
+              null,
+              bgKey
+            ).catch(() => {});
+          }
+        }
+
+        return cached.data;
+      } else {
+        requestCache.current.delete(bundleKey);
+      }
+    }
+
+    // If no bundle cache exists, fetch both in parallel and store as bundle
+    const reqKey = `bundle_req_${bundleKey}`;
+    if (activeRequests.current.has(reqKey)) {
+      return activeRequests.current.get(reqKey);
+    }
+
+    const promise = (async () => {
+      try {
+        dispatch({ type: 'SET_LOADING', payload: true });
+        const [currentRes, forecastRes] = await Promise.all([
+          api.get('/weather/current', { params: { lat, lon, units: state.units } }),
+          api.get('/weather/forecast', { params: { lat, lon, units: state.units } })
+        ]);
+
+        const data = { current: currentRes.data, forecast: forecastRes.data };
+
+        // Cache bundle and individual entries
+        requestCache.current.set(bundleKey, { data, expiresAt: Date.now() + (10 * 60 * 1000) });
+        requestCache.current.set(`current_${lat.toFixed(2)}_${lon.toFixed(2)}_${state.units}`, { data: currentRes.data, expiresAt: Date.now() + (10 * 60 * 1000) });
+        requestCache.current.set(`forecast_${lat.toFixed(2)}_${lon.toFixed(2)}_${state.units}`, { data: forecastRes.data, expiresAt: Date.now() + (10 * 60 * 1000) });
+
+        dispatch({ type: 'SET_CURRENT_WEATHER', payload: currentRes.data });
+        dispatch({ type: 'SET_FORECAST', payload: forecastRes.data });
+
+        return data;
+      } catch (error) {
+        const message = error.response?.data?.message || 'Failed to fetch weather bundle';
+        dispatch({ type: 'SET_ERROR', payload: message });
+        throw error;
+      } finally {
+        activeRequests.current.delete(reqKey);
+      }
+    })();
+
+    activeRequests.current.set(reqKey, promise);
+    return promise;
+  }, [state.units, apiRequest]);
 
   const searchCities = useCallback(async (query) => {
     if (!query || query.length < 2) {
@@ -299,6 +441,12 @@ export const WeatherProvider = ({ children }) => {
         return;
       }
 
+      // Reuse recent geolocation-based result if available (2 minutes)
+      if (geolocationLastFetch.current.timestamp && (Date.now() - geolocationLastFetch.current.timestamp) < 2 * 60 * 1000) {
+        resolve(geolocationLastFetch.current.data);
+        return;
+      }
+
       navigator.geolocation.getCurrentPosition(
         async (position) => {
           try {
@@ -364,6 +512,8 @@ export const WeatherProvider = ({ children }) => {
                   daily: data.daily
                 }
               });
+              // store recent geolocation fetch
+              geolocationLastFetch.current = { timestamp: Date.now(), data };
               
               resolve(data);
             } else {
@@ -518,6 +668,7 @@ export const WeatherProvider = ({ children }) => {
     ...state,
     getCurrentWeather,
     getForecast,
+    getWeatherBundle,
     searchCities,
     getGeolocationWeather,
     addToFavorites,
@@ -531,6 +682,7 @@ export const WeatherProvider = ({ children }) => {
     state,
     getCurrentWeather,
     getForecast,
+    getWeatherBundle,
     searchCities,
     getGeolocationWeather,
     addToFavorites,

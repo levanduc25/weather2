@@ -7,6 +7,11 @@ if (!WEATHER_API_KEY) {
   console.warn('WARNING: WEATHER_API_KEY is not set. Weather requests will fail.');
 }
 
+// Cached flag: if OpenWeather responds with 401 Invalid API key,
+// we flip this to true and fail fast on subsequent requests to avoid
+// spamming logs and repeated network attempts.
+let invalidApiKey = false;
+
 const client = axios.create({
   baseURL: WEATHER_BASE_URL,
   timeout: 15000, // Increased timeout to 15 seconds
@@ -31,6 +36,9 @@ const isCacheValid = (timestamp, isSearch = false) => {
 
 const get = async (path, params = {}) => {
   try {
+    if (invalidApiKey) {
+      throw new Error('WEATHER_API_KEY appears to be invalid (cached). Set a valid key in server/.env');
+    }
     const cacheKey = getCacheKey(path, params);
     const cached = cache.get(cacheKey);
     const isSearch = path.includes('geo') || path.includes('direct');
@@ -67,6 +75,12 @@ const get = async (path, params = {}) => {
     const msg = respData?.message || respData || err.message;
     // Log structured error for debugging
     console.error('Weather API request failed:', respData || err.message);
+    // If the API returned 401 / invalid key, mark and provide a clear notice
+    const status = err.response?.status;
+    if (status === 401 || (respData && (respData.cod === 401 || /invalid api key/i.test(respData.message || '')))) {
+      invalidApiKey = true;
+      console.error('OpenWeather responded with 401 Invalid API key. Please verify the value of WEATHER_API_KEY in server/.env and ensure the key is valid and has access to the requested endpoints.');
+    }
     // Ensure we throw a string message (avoid Error([object Object]))
     const safeMessage = typeof msg === 'string' ? msg : JSON.stringify(msg);
     throw new Error(safeMessage);

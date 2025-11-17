@@ -253,6 +253,7 @@ const SearchModal = ({ onClose }) => {
     searchCities, 
     getCurrentWeather,
     getForecast,
+    getWeatherBundle,
     addToSearchHistory,
     getSearchHistory,
     clearSearchHistory,
@@ -315,9 +316,16 @@ const SearchModal = ({ onClose }) => {
 
   const handleCitySelect = async (city) => {
     try {
-      // Get weather for selected city
-      await getCurrentWeather(city.lat, city.lon);
-      await getForecast(city.lat, city.lon);
+      // Get weather for selected city. Use bundled fetch if available to
+      // reduce duplicate requests; otherwise fetch both in parallel.
+      if (typeof getWeatherBundle === 'function') {
+        await getWeatherBundle(city.lat, city.lon);
+      } else {
+        await Promise.all([
+          getCurrentWeather(city.lat, city.lon),
+          getForecast(city.lat, city.lon)
+        ]);
+      }
       
       // Add to search history
       await addToSearchHistory(city.name, city.country);
