@@ -32,7 +32,7 @@ const HomeContainer = styled.div`
   transition: background 0.5s ease, color 0.5s ease;
   position: relative;
   overflow: hidden;
-  color: var(--text-color); /* Apply text color from theme */
+  color: var(--text-color);
 `;
 
 const SnowEffect = styled.div`
@@ -77,7 +77,6 @@ const MainContent = styled.div`
   position: relative;
   z-index: 2;
   display: flex;
-  /* account for fixed header (~80px) so panels have stable height */
   min-height: calc(100vh - 80px);
   height: calc(100vh - 80px);
 
@@ -95,9 +94,8 @@ const LeftPanel = styled(motion.div)`
   flex-direction: column;
   justify-content: flex-start;
   align-items: center;
-  color: var(--text-color); /* Apply text color from theme */
+  color: var(--text-color);
 
-  /* constrain the main card inside left panel */
   & > div {
     width: 100%;
     max-width: 920px;
@@ -138,13 +136,13 @@ const WelcomeMessage = styled.div`
     font-weight: bold;
     margin-bottom: 10px;
     text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.3);
-    color: var(--text-color); /* Apply text color from theme */
+    color: var(--text-color);
   }
   
   p {
     font-size: 1.2rem;
     opacity: 0.9;
-    color: var(--text-color); /* Apply text color from theme */
+    color: var(--text-color);
   }
 `;
 
@@ -179,33 +177,53 @@ const Home = () => {
   const [showSearchModal, setShowSearchModal] = useState(false);
   const [showFavoritesModal, setShowFavoritesModal] = useState(false);
   const [showDiscordSettings, setShowDiscordSettings] = useState(false);
+  const [suggestions, setSuggestions] = useState([]);
 
   useEffect(() => {
     // Try to get weather for user's last location or current location
     const loadInitialWeather = async () => {
       try {
-        // Only load if we don't already have weather data
         if (!currentWeather) {
-          await getGeolocationWeather();
+          // Load ban đầu KHÔNG force refresh (dùng cache nếu có)
+          await getGeolocationWeather(false);
         }
       } catch (error) {
         console.error('Failed to load initial weather:', error);
       }
     };
 
-    // Add a small delay to prevent race conditions
     const timeoutId = setTimeout(loadInitialWeather, 100);
     return () => clearTimeout(timeoutId);
-  }, [currentWeather]); // Remove getGeolocationWeather from dependencies to prevent re-running
+  }, [currentWeather]);
+
+  // Tính toán suggestions khi có dữ liệu thời tiết
+  useEffect(() => {
+    if (currentWeather) {
+      console.log('=== DEBUG SUGGESTIONS ===');
+      console.log('Current Weather:', currentWeather);
+      console.log('Forecast:', forecast);
+      
+      const newSuggestions = getSuggestions({ 
+        current: currentWeather.current || currentWeather, 
+        forecast: forecast || currentWeather?.forecast 
+      });
+      
+      console.log('Suggestions được tạo:', newSuggestions);
+      console.log('========================');
+      
+      setSuggestions(newSuggestions);
+    }
+  }, [currentWeather, forecast]);
 
   const handleGetCurrentLocation = async () => {
     try {
-      const result = await getGeolocationWeather();
+      // FORCE REFRESH = true để luôn lấy vị trí mới
+      const result = await getGeolocationWeather(true);
       console.log('Location weather loaded:', result);
-      toast.success('Location updated successfully!');
+      toast.success('Đã cập nhật vị trí hiện tại!');
     } catch (error) {
       console.error('Failed to get current location weather:', error);
-      toast.error(error?.message || 'Failed to get your location. Please try again.');
+      toast.error(error?.message || 'Không thể lấy vị trí của bạn. Vui lòng thử lại.');
     }
   };
 
@@ -241,23 +259,21 @@ const Home = () => {
                 forecast={forecast}
               />
 
-              {/* compute suggestions (MVP) and render below the main card */}
-              {(() => {
-                const suggestions = getSuggestions({ current: currentWeather.current || currentWeather, forecast: forecast || currentWeather?.forecast });
-                if (suggestions && suggestions.length) {
-                  return <div style={{ marginTop: 16 }}><SuggestionCard suggestion={suggestions[0]} /></div>;
-                }
-                return null;
-              })()}
+              {/* Hiển thị suggestions nếu có */}
+              {suggestions.length > 0 && (
+                <div style={{ marginTop: 16, width: '100%' }}>
+                  <SuggestionCard suggestion={suggestions[0]} />
+                </div>
+              )}
             </>
           ) : (
             <div>
               <WelcomeMessage>
-                <h1>Welcome, {user?.fullName}!</h1>
-                <p>Get started by searching for a city or using your current location</p>
+                <h1>Xin chào, {user?.fullName}!</h1>
+                <p>Bắt đầu bằng cách tìm kiếm thành phố hoặc dùng vị trí hiện tại</p>
               </WelcomeMessage>
               <GetStartedButton onClick={() => setShowSearchModal(true)}>
-                Search for Weather
+                Tìm kiếm thời tiết
               </GetStartedButton>
             </div>
           )}
@@ -269,7 +285,6 @@ const Home = () => {
           animate={{ opacity: 1, x: 0 }}
           transition={{ duration: 0.5, delay: 0.2 }}
         >
-          {/* stable container to avoid reflow; internal content swaps with AnimatePresence */}
           <motion.div layout style={{ minHeight: 560 }}>
             <AnimatePresence mode="wait">
               {showDiscordSettings ? (
@@ -312,8 +327,8 @@ const Home = () => {
                   transition={{ duration: 0.25 }}
                 >
                   <div style={{ color: 'white', textAlign: 'center', padding: '40px 0' }}>
-                    <h3>Weather Details</h3>
-                    <p>Search for a city to see detailed weather information</p>
+                    <h3>Chi tiết thời tiết</h3>
+                    <p>Tìm kiếm thành phố để xem thông tin chi tiết</p>
                   </div>
                 </motion.div>
               )}

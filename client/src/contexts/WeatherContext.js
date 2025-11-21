@@ -14,7 +14,7 @@ const initialState = {
   error: null,
   units: 'metric',
   isRequestInProgress: false,
-  searchLoading: false // Separate loading state for search
+  searchLoading: false
 };
 
 const weatherReducer = (state, action) => {
@@ -49,38 +49,34 @@ const weatherReducer = (state, action) => {
 export const WeatherProvider = ({ children }) => {
   const [state, dispatch] = useReducer(weatherReducer, initialState);
   
-  // Cache for API requests to prevent duplicate calls
   const requestCache = useRef(new Map());
   const searchCache = useRef(new Map());
   const sessionCacheKey = 'weather_request_cache_v1';
-  // Try to hydrate cache from sessionStorage
+  
   try {
     const stored = sessionStorage.getItem(sessionCacheKey);
     if (stored) {
       const parsed = JSON.parse(stored);
-      // parsed should be an object of cacheKey -> { data, expiresAt }
       requestCache.current = new Map(Object.entries(parsed));
     }
   } catch (e) {
     // ignore
   }
+  
   const lastSearchQuery = useRef('');
   const searchTimeoutRef = useRef(null);
-  const searchAbortController = useRef(null); // AbortController for canceling in-flight search requests
-  const activeRequests = useRef(new Map()); // Track active requests to prevent duplicates
+  const searchAbortController = useRef(null);
+  const activeRequests = useRef(new Map());
   const geolocationLastFetch = useRef({ timestamp: 0, data: null });
 
   const apiRequest = useCallback(async (apiCall, successAction, errorMessage, successMessage, requestKey) => {
-    // Create a unique key for this request type
     const key = requestKey || 'default';
     
-    // Check if this exact request is already in progress
     if (activeRequests.current.has(key)) {
       console.log(`Request ${key} already in progress, waiting for result...`);
       return activeRequests.current.get(key);
     }
 
-    // Prevent multiple simultaneous requests of the same type
     if (state.isRequestInProgress && !requestKey) {
       console.log('Request already in progress, skipping...');
       return;
@@ -104,9 +100,7 @@ export const WeatherProvider = ({ children }) => {
         toast.error(message);
         throw error;
       } finally {
-        // Remove from active requests
         activeRequests.current.delete(key);
-        // persist a lightweight cache snapshot to sessionStorage to survive reloads
         try {
           const obj = Object.fromEntries(requestCache.current);
           sessionStorage.setItem(sessionCacheKey, JSON.stringify(obj));
@@ -116,25 +110,21 @@ export const WeatherProvider = ({ children }) => {
       }
     })();
 
-    // Store the promise for deduplication
     activeRequests.current.set(key, requestPromise);
     return requestPromise;
   }, [state.isRequestInProgress]);
 
   const getCurrentWeather = useCallback(async (lat, lon) => {
-    // Check cache first
     const cacheKey = `current_${lat.toFixed(2)}_${lon.toFixed(2)}_${state.units}`;
-    // If cached and fresh, return immediately (stale-while-revalidate)
+    
     if (requestCache.current.has(cacheKey)) {
       const cachedEntry = requestCache.current.get(cacheKey);
       if (cachedEntry.expiresAt > Date.now()) {
         dispatch({ type: 'SET_CURRENT_WEATHER', payload: cachedEntry.data });
 
-        // If cache is nearing expiry (<2 minutes), trigger background refresh
         if (cachedEntry.expiresAt - Date.now() < 2 * 60 * 1000) {
           const bgKey = `current_bg_refresh_${cacheKey}`;
           if (!activeRequests.current.has(bgKey)) {
-            // Fire-and-forget refresh
             apiRequest(
               () => api.get('/weather/current', { params: { lat, lon, units: state.units } }),
               (data) => {
@@ -150,7 +140,6 @@ export const WeatherProvider = ({ children }) => {
 
         return cachedEntry.data;
       } else {
-        // Remove expired cache entry
         requestCache.current.delete(cacheKey);
       }
     }
@@ -159,7 +148,6 @@ export const WeatherProvider = ({ children }) => {
     return apiRequest(
       () => api.get('/weather/current', { params: { lat, lon, units: state.units } }),
       (data) => {
-        // Cache the result for 10 minutes with expiration timestamp
         requestCache.current.set(cacheKey, {
           data,
           expiresAt: Date.now() + (10 * 60 * 1000)
@@ -173,15 +161,13 @@ export const WeatherProvider = ({ children }) => {
   }, [apiRequest, state.units]);
 
   const getForecast = useCallback(async (lat, lon) => {
-    // Check cache first
     const cacheKey = `forecast_${lat.toFixed(2)}_${lon.toFixed(2)}_${state.units}`;
-    // If cached and fresh, return immediately (stale-while-revalidate)
+    
     if (requestCache.current.has(cacheKey)) {
       const cachedEntry = requestCache.current.get(cacheKey);
       if (cachedEntry.expiresAt > Date.now()) {
         dispatch({ type: 'SET_FORECAST', payload: cachedEntry.data });
 
-        // If cache is nearing expiry (<2 minutes), trigger background refresh
         if (cachedEntry.expiresAt - Date.now() < 2 * 60 * 1000) {
           const bgKey = `forecast_bg_refresh_${cacheKey}`;
           if (!activeRequests.current.has(bgKey)) {
@@ -200,7 +186,6 @@ export const WeatherProvider = ({ children }) => {
 
         return cachedEntry.data;
       } else {
-        // Remove expired cache entry
         requestCache.current.delete(cacheKey);
       }
     }
@@ -209,7 +194,6 @@ export const WeatherProvider = ({ children }) => {
     return apiRequest(
       () => api.get('/weather/forecast', { params: { lat, lon, units: state.units } }),
       (data) => {
-        // Cache the result for 10 minutes with expiration timestamp
         requestCache.current.set(cacheKey, {
           data,
           expiresAt: Date.now() + (10 * 60 * 1000)
@@ -222,19 +206,15 @@ export const WeatherProvider = ({ children }) => {
     );
   }, [apiRequest, state.units]);
 
-  // Combined fetch: return both current and forecast in a single logical call.
   const getWeatherBundle = useCallback(async (lat, lon) => {
     const bundleKey = `bundle_${lat.toFixed(2)}_${lon.toFixed(2)}_${state.units}`;
 
-    // Check session cache (requestCache) for bundle
     if (requestCache.current.has(bundleKey)) {
       const cached = requestCache.current.get(bundleKey);
       if (cached.expiresAt > Date.now()) {
-        // populate both states
         dispatch({ type: 'SET_CURRENT_WEATHER', payload: cached.data.current });
         dispatch({ type: 'SET_FORECAST', payload: cached.data.forecast });
 
-        // background refresh if nearing expiry
         if (cached.expiresAt - Date.now() < 2 * 60 * 1000) {
           const bgKey = `bundle_bg_${bundleKey}`;
           if (!activeRequests.current.has(bgKey)) {
@@ -244,12 +224,10 @@ export const WeatherProvider = ({ children }) => {
                 api.get('/weather/forecast', { params: { lat, lon, units: state.units } })
               ]),
               (responses) => {
-                // responses is an array of axios responses
                 const currentData = responses[0].data;
                 const forecastData = responses[1].data;
                 const data = { current: currentData, forecast: forecastData };
                 requestCache.current.set(bundleKey, { data, expiresAt: Date.now() + (10 * 60 * 1000) });
-                // update individual caches too
                 requestCache.current.set(`current_${lat.toFixed(2)}_${lon.toFixed(2)}_${state.units}`, { data: currentData, expiresAt: Date.now() + (10 * 60 * 1000) });
                 requestCache.current.set(`forecast_${lat.toFixed(2)}_${lon.toFixed(2)}_${state.units}`, { data: forecastData, expiresAt: Date.now() + (10 * 60 * 1000) });
                 return ({ type: 'SET_CURRENT_WEATHER', payload: currentData });
@@ -267,7 +245,6 @@ export const WeatherProvider = ({ children }) => {
       }
     }
 
-    // If no bundle cache exists, fetch both in parallel and store as bundle
     const reqKey = `bundle_req_${bundleKey}`;
     if (activeRequests.current.has(reqKey)) {
       return activeRequests.current.get(reqKey);
@@ -283,7 +260,6 @@ export const WeatherProvider = ({ children }) => {
 
         const data = { current: currentRes.data, forecast: forecastRes.data };
 
-        // Cache bundle and individual entries
         requestCache.current.set(bundleKey, { data, expiresAt: Date.now() + (10 * 60 * 1000) });
         requestCache.current.set(`current_${lat.toFixed(2)}_${lon.toFixed(2)}_${state.units}`, { data: currentRes.data, expiresAt: Date.now() + (10 * 60 * 1000) });
         requestCache.current.set(`forecast_${lat.toFixed(2)}_${lon.toFixed(2)}_${state.units}`, { data: forecastRes.data, expiresAt: Date.now() + (10 * 60 * 1000) });
@@ -311,13 +287,11 @@ export const WeatherProvider = ({ children }) => {
       return [];
     }
     
-    // Prevent duplicate searches for the same query
     if (lastSearchQuery.current === query) {
       console.log('Duplicate search query detected, returning cached results');
       return state.searchResults;
     }
     
-    // Check cache first
     const cacheKey = `search_${query.toLowerCase()}`;
     if (searchCache.current.has(cacheKey)) {
       const cachedEntry = searchCache.current.get(cacheKey);
@@ -327,31 +301,25 @@ export const WeatherProvider = ({ children }) => {
         console.log('Returning cached search results for:', query);
         return cachedEntry.data;
       } else {
-        // Remove expired cache entry
         searchCache.current.delete(cacheKey);
       }
     }
     
-    // Cancel any previous in-flight search request to prevent stale results
     if (searchAbortController.current) {
       console.log('Canceling previous search request');
       searchAbortController.current.abort();
     }
     
-    // Create a new AbortController for this search
     searchAbortController.current = new AbortController();
     const signal = searchAbortController.current.signal;
     
-    // Clear previous timeout
     if (searchTimeoutRef.current) {
       clearTimeout(searchTimeoutRef.current);
     }
     
-    // Set loading state
     dispatch({ type: 'SET_SEARCH_LOADING', payload: true });
     lastSearchQuery.current = query;
     
-    // Set a timeout to prevent infinite loading
     const timeoutId = setTimeout(() => {
       console.warn('Search request timed out after 15 seconds');
       dispatch({ type: 'SET_SEARCH_LOADING', payload: false });
@@ -363,17 +331,15 @@ export const WeatherProvider = ({ children }) => {
       console.log('Making API request to /weather/search with query:', query);
       const response = await api.get('/weather/search', { 
         params: { q: query },
-        signal: signal // Pass AbortSignal to axios
+        signal: signal
       });
       console.log('API response received:', response);
       
-      // Clear timeout since request completed
       clearTimeout(timeoutId);
       
       const payload = response?.data;
       console.log('Response payload:', payload);
 
-      // Support multiple response shapes: { results: [] } or []
       let results = [];
       if (Array.isArray(payload)) {
         results = payload;
@@ -385,7 +351,6 @@ export const WeatherProvider = ({ children }) => {
 
       console.log('Processed results:', results);
 
-      // Cache the results for 5 minutes with expiration timestamp
       searchCache.current.set(cacheKey, {
         data: results,
         expiresAt: Date.now() + (5 * 60 * 1000)
@@ -394,28 +359,16 @@ export const WeatherProvider = ({ children }) => {
       dispatch({ type: 'SET_SEARCH_RESULTS', payload: results });
       return results;
     } catch (error) {
-      // Clear timeout since request failed
       clearTimeout(timeoutId);
       
-      // Don't show error if request was aborted (user typed a new query)
       if (error.name === 'AbortError') {
         console.log('Search request was canceled by user typing new query');
         return [];
       }
       
       console.error('searchCities failed:', error);
-      console.error('Error details:', {
-        message: error.message,
-        response: error.response,
-        status: error.response?.status,
-        data: error.response?.data,
-        code: error.code,
-        config: error.config
-      });
       
-      // Always show error toast for search failures (not page load)
       if (query && query.length >= 2) {
-        // Handle specific error types
         if (error.response?.data?.error === 'API_KEY_MISSING') {
           toast.error('Weather API key is not configured. Please contact administrator.');
         } else if (error.response?.data?.message) {
@@ -429,44 +382,46 @@ export const WeatherProvider = ({ children }) => {
         }
       }
       
-      // Clear loading state and results
       dispatch({ type: 'SET_SEARCH_RESULTS', payload: [] });
       return [];
     } finally {
-      // Ensure loading state is cleared
       dispatch({ type: 'SET_SEARCH_LOADING', payload: false });
     }
   }, [state.searchResults]);
 
-  const getGeolocationWeather = useCallback(async () => {
+  // THÊM THAM SỐ forceRefresh
+  const getGeolocationWeather = useCallback(async (forceRefresh = false) => {
     return new Promise((resolve, reject) => {
       if (!navigator.geolocation) {
         reject(new Error('Geolocation is not supported by this browser'));
         return;
       }
 
-      // Reuse recent geolocation-based result if available (2 minutes)
-      if (geolocationLastFetch.current.timestamp && (Date.now() - geolocationLastFetch.current.timestamp) < 2 * 60 * 1000) {
+      // CHỈ dùng cache nếu KHÔNG phải force refresh
+      if (!forceRefresh && geolocationLastFetch.current.timestamp && (Date.now() - geolocationLastFetch.current.timestamp) < 2 * 60 * 1000) {
         console.log('Reusing cached geolocation data');
         resolve(geolocationLastFetch.current.data);
         return;
       }
 
-      // Set loading state
+      // Nếu là force refresh, XÓA cache cũ
+      if (forceRefresh) {
+        console.log('Force refresh - clearing geolocation cache');
+        geolocationLastFetch.current = { timestamp: 0, data: null };
+      }
+
       dispatch({ type: 'SET_LOADING', payload: true });
       
       let timeoutHandle = null;
       
-      // Create a timeout to reject if geolocation takes too long
       const timeoutPromise = new Promise((_, timeoutReject) => {
         timeoutHandle = setTimeout(() => {
           timeoutReject(new Error('Location request timed out. Please try again or enable location services.'));
-        }, 15000); // 15 second timeout
+        }, 15000);
       });
 
       navigator.geolocation.getCurrentPosition(
         async (position) => {
-          // Clear timeout since we got a response
           if (timeoutHandle) clearTimeout(timeoutHandle);
           
           try {
@@ -474,9 +429,14 @@ export const WeatherProvider = ({ children }) => {
             console.log('Got geolocation:', { latitude, longitude });
             
             if (latitude && longitude) {
-              // Check cache first
               const cacheKey = `geolocation_${latitude.toFixed(2)}_${longitude.toFixed(2)}_${state.units}`;
-              if (requestCache.current.has(cacheKey)) {
+              
+              // Nếu force refresh, XÓA cache API
+              if (forceRefresh) {
+                requestCache.current.delete(cacheKey);
+              }
+              
+              if (!forceRefresh && requestCache.current.has(cacheKey)) {
                 const cachedEntry = requestCache.current.get(cacheKey);
                 if (cachedEntry.expiresAt > Date.now()) {
                   console.log('Using cached geolocation weather');
@@ -501,12 +461,10 @@ export const WeatherProvider = ({ children }) => {
                   resolve(cachedData);
                   return;
                 } else {
-                  // Remove expired cache entry
                   requestCache.current.delete(cacheKey);
                 }
               }
 
-              // Use the geolocation endpoint that returns both current weather and forecast
               console.log('Fetching geolocation weather from API');
               const response = await api.get('/weather/geolocation', {
                 params: { lat: latitude, lon: longitude, units: state.units }
@@ -514,13 +472,11 @@ export const WeatherProvider = ({ children }) => {
               
               const data = response.data;
               
-              // Cache the result for 10 minutes with expiration timestamp
               requestCache.current.set(cacheKey, {
                 data,
                 expiresAt: Date.now() + (10 * 60 * 1000)
               });
               
-              // Set current weather
               dispatch({ 
                 type: 'SET_CURRENT_WEATHER', 
                 payload: {
@@ -529,7 +485,6 @@ export const WeatherProvider = ({ children }) => {
                 }
               });
               
-              // Set forecast
               dispatch({ 
                 type: 'SET_FORECAST', 
                 payload: {
@@ -541,7 +496,6 @@ export const WeatherProvider = ({ children }) => {
               
               dispatch({ type: 'SET_LOADING', payload: false });
               
-              // store recent geolocation fetch
               geolocationLastFetch.current = { timestamp: Date.now(), data };
               
               resolve(data);
@@ -556,7 +510,6 @@ export const WeatherProvider = ({ children }) => {
           }
         },
         (error) => {
-          // Clear timeout since we got an error
           if (timeoutHandle) clearTimeout(timeoutHandle);
           
           dispatch({ type: 'SET_LOADING', payload: false });
@@ -582,7 +535,7 @@ export const WeatherProvider = ({ children }) => {
         {
           enableHighAccuracy: true,
           timeout: 10000,
-          maximumAge: 300000 // 5 minutes
+          maximumAge: 0 // KHÔNG dùng cache của browser
         }
       );
     });
@@ -623,7 +576,6 @@ export const WeatherProvider = ({ children }) => {
   const addToSearchHistory = async (city, country) => {
     try {
       await api.post('/user/search-history', { city, country });
-      // Refresh search history
       const response = await api.get('/user/search-history');
       dispatch({ type: 'SET_SEARCH_HISTORY', payload: response.data.searchHistory });
     } catch (error) {
@@ -657,7 +609,6 @@ export const WeatherProvider = ({ children }) => {
     const newUnits = state.units === 'metric' ? 'imperial' : 'metric';
     dispatch({ type: 'SET_UNITS', payload: newUnits });
     
-    // Update user preferences
     api.put('/user/preferences', {
       temperatureUnit: newUnits === 'metric' ? 'celsius' : 'fahrenheit'
     }).catch(error => {
@@ -669,38 +620,33 @@ export const WeatherProvider = ({ children }) => {
     dispatch({ type: 'CLEAR_SEARCH_RESULTS' });
   };
 
-  // Cleanup function to clear timeouts and cache
   useEffect(() => {
     return () => {
       if (searchTimeoutRef.current) {
         clearTimeout(searchTimeoutRef.current);
       }
-      // Clear all caches on unmount
       requestCache.current.clear();
       searchCache.current.clear();
       activeRequests.current.clear();
     };
   }, []);
 
-  // Cache cleanup effect - remove expired entries every 5 minutes
   useEffect(() => {
     const cleanupInterval = setInterval(() => {
       const now = Date.now();
       
-      // Clean up request cache
       for (const [key, value] of requestCache.current.entries()) {
         if (value.expiresAt && now > value.expiresAt) {
           requestCache.current.delete(key);
         }
       }
       
-      // Clean up search cache
       for (const [key, value] of searchCache.current.entries()) {
         if (value.expiresAt && now > value.expiresAt) {
           searchCache.current.delete(key);
         }
       }
-    }, 5 * 60 * 1000); // Every 5 minutes
+    }, 5 * 60 * 1000);
 
     return () => clearInterval(cleanupInterval);
   }, []);
@@ -719,7 +665,7 @@ export const WeatherProvider = ({ children }) => {
     clearSearchHistory,
     toggleUnits,
     clearSearchResults
-  }), [state]); // Only depend on state to prevent unnecessary re-renders
+  }), [state]);
 
   return (
     <WeatherContext.Provider value={value}>
