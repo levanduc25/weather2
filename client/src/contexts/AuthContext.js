@@ -182,11 +182,25 @@ export const AuthProvider = ({ children }) => {
   }, [handleAuthRequest]);
 
   const logout = useCallback(() => {
-    // Clear token from axios headers immediately
-    delete api.defaults.headers.common['Authorization'];
-    dispatch({ type: 'LOGOUT' });
-    toast.success('Logged out successfully');
-  }, []);
+  // Xóa token khỏi axios headers
+  delete api.defaults.headers.common['Authorization'];
+  
+  // Hủy các request đang chờ
+  if (api.cancelToken) {
+    api.cancelToken.cancel('Đã hủy bởi người dùng');
+  }
+  
+  // Xóa token khỏi localStorage
+  localStorage.removeItem('token');
+  
+  // Đặt lại trạng thái
+  dispatch({ type: 'LOGOUT' });
+  
+  // Chuyển hướng về trang đăng nhập
+  if (window.location.pathname !== '/login') {
+    window.location.href = '/login';
+  }
+}, []);
 
   const updateUser = useCallback((userData) => {
     dispatch({

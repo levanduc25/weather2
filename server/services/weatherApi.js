@@ -1,3 +1,4 @@
+require('dotenv').config({ path: `${__dirname}/../../.env` });
 const axios = require('axios');
 
 const WEATHER_API_KEY = process.env.WEATHER_API_KEY;
