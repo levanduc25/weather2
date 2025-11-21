@@ -66,6 +66,7 @@ export const WeatherProvider = ({ children }) => {
   }
   const lastSearchQuery = useRef('');
   const searchTimeoutRef = useRef(null);
+  const searchAbortController = useRef(null); // AbortController for canceling in-flight search requests
   const activeRequests = useRef(new Map()); // Track active requests to prevent duplicates
   const geolocationLastFetch = useRef({ timestamp: 0, data: null });
 
@@ -316,13 +317,6 @@ export const WeatherProvider = ({ children }) => {
       return state.searchResults;
     }
     
-    // Check if we're already searching for this query
-    const searchKey = `search_${query}`;
-    if (activeRequests.current.has(searchKey)) {
-      console.log('Search already in progress for:', query);
-      return activeRequests.current.get(searchKey);
-    }
-    
     // Check cache first
     const cacheKey = `search_${query.toLowerCase()}`;
     if (searchCache.current.has(cacheKey)) {
@@ -330,12 +324,23 @@ export const WeatherProvider = ({ children }) => {
       if (cachedEntry.expiresAt > Date.now()) {
         dispatch({ type: 'SET_SEARCH_RESULTS', payload: cachedEntry.data });
         lastSearchQuery.current = query;
+        console.log('Returning cached search results for:', query);
         return cachedEntry.data;
       } else {
         // Remove expired cache entry
         searchCache.current.delete(cacheKey);
       }
     }
+    
+    // Cancel any previous in-flight search request to prevent stale results
+    if (searchAbortController.current) {
+      console.log('Canceling previous search request');
+      searchAbortController.current.abort();
+    }
+    
+    // Create a new AbortController for this search
+    searchAbortController.current = new AbortController();
+    const signal = searchAbortController.current.signal;
     
     // Clear previous timeout
     if (searchTimeoutRef.current) {
@@ -352,14 +357,14 @@ export const WeatherProvider = ({ children }) => {
       dispatch({ type: 'SET_SEARCH_LOADING', payload: false });
       dispatch({ type: 'SET_SEARCH_RESULTS', payload: [] });
       toast.error('Search request timed out. Please try again.');
-      // Remove from active requests
-      activeRequests.current.delete(searchKey);
     }, 15000);
     
-    const searchPromise = (async () => {
-      try {
+    try {
       console.log('Making API request to /weather/search with query:', query);
-      const response = await api.get('/weather/search', { params: { q: query } });
+      const response = await api.get('/weather/search', { 
+        params: { q: query },
+        signal: signal // Pass AbortSignal to axios
+      });
       console.log('API response received:', response);
       
       // Clear timeout since request completed
@@ -386,52 +391,51 @@ export const WeatherProvider = ({ children }) => {
         expiresAt: Date.now() + (5 * 60 * 1000)
       });
 
-        dispatch({ type: 'SET_SEARCH_RESULTS', payload: results });
-        return results;
-      } catch (error) {
-        // Clear timeout since request failed
-        clearTimeout(timeoutId);
-        
-        console.error('searchCities failed:', error);
-        console.error('Error details:', {
-          message: error.message,
-          response: error.response,
-          status: error.response?.status,
-          data: error.response?.data,
-          code: error.code,
-          config: error.config
-        });
-        
-        // Always show error toast for search failures (not page load)
-        if (query && query.length >= 2) {
-          // Handle specific error types
-          if (error.response?.data?.error === 'API_KEY_MISSING') {
-            toast.error('Weather API key is not configured. Please contact administrator.');
-          } else if (error.response?.data?.message) {
-            toast.error(`Search failed: ${error.response.data.message}`);
-          } else if (error.code === 'ECONNABORTED' || error.message.includes('timeout')) {
-            toast.error('Request timed out. Please try again.');
-          } else if (error.code === 'NETWORK_ERROR' || !error.response) {
-            toast.error('Network error. Please check your connection.');
-          } else {
-            toast.error('Failed to search cities. Please try again.');
-          }
-        }
-        
-        // Clear loading state and results
-        dispatch({ type: 'SET_SEARCH_RESULTS', payload: [] });
+      dispatch({ type: 'SET_SEARCH_RESULTS', payload: results });
+      return results;
+    } catch (error) {
+      // Clear timeout since request failed
+      clearTimeout(timeoutId);
+      
+      // Don't show error if request was aborted (user typed a new query)
+      if (error.name === 'AbortError') {
+        console.log('Search request was canceled by user typing new query');
         return [];
-      } finally {
-        // Ensure loading state is cleared
-        dispatch({ type: 'SET_SEARCH_LOADING', payload: false });
-        // Remove from active requests
-        activeRequests.current.delete(searchKey);
       }
-    })();
-    
-    // Store the promise for deduplication
-    activeRequests.current.set(searchKey, searchPromise);
-    return searchPromise;
+      
+      console.error('searchCities failed:', error);
+      console.error('Error details:', {
+        message: error.message,
+        response: error.response,
+        status: error.response?.status,
+        data: error.response?.data,
+        code: error.code,
+        config: error.config
+      });
+      
+      // Always show error toast for search failures (not page load)
+      if (query && query.length >= 2) {
+        // Handle specific error types
+        if (error.response?.data?.error === 'API_KEY_MISSING') {
+          toast.error('Weather API key is not configured. Please contact administrator.');
+        } else if (error.response?.data?.message) {
+          toast.error(`Search failed: ${error.response.data.message}`);
+        } else if (error.code === 'ECONNABORTED' || error.message.includes('timeout')) {
+          toast.error('Request timed out. Please try again.');
+        } else if (error.code === 'NETWORK_ERROR' || !error.response) {
+          toast.error('Network error. Please check your connection.');
+        } else {
+          toast.error('Failed to search cities. Please try again.');
+        }
+      }
+      
+      // Clear loading state and results
+      dispatch({ type: 'SET_SEARCH_RESULTS', payload: [] });
+      return [];
+    } finally {
+      // Ensure loading state is cleared
+      dispatch({ type: 'SET_SEARCH_LOADING', payload: false });
+    }
   }, [state.searchResults]);
 
   const getGeolocationWeather = useCallback(async () => {
@@ -443,20 +447,39 @@ export const WeatherProvider = ({ children }) => {
 
       // Reuse recent geolocation-based result if available (2 minutes)
       if (geolocationLastFetch.current.timestamp && (Date.now() - geolocationLastFetch.current.timestamp) < 2 * 60 * 1000) {
+        console.log('Reusing cached geolocation data');
         resolve(geolocationLastFetch.current.data);
         return;
       }
 
+      // Set loading state
+      dispatch({ type: 'SET_LOADING', payload: true });
+      
+      let timeoutHandle = null;
+      
+      // Create a timeout to reject if geolocation takes too long
+      const timeoutPromise = new Promise((_, timeoutReject) => {
+        timeoutHandle = setTimeout(() => {
+          timeoutReject(new Error('Location request timed out. Please try again or enable location services.'));
+        }, 15000); // 15 second timeout
+      });
+
       navigator.geolocation.getCurrentPosition(
         async (position) => {
+          // Clear timeout since we got a response
+          if (timeoutHandle) clearTimeout(timeoutHandle);
+          
           try {
             const { latitude, longitude } = position.coords;
+            console.log('Got geolocation:', { latitude, longitude });
+            
             if (latitude && longitude) {
               // Check cache first
               const cacheKey = `geolocation_${latitude.toFixed(2)}_${longitude.toFixed(2)}_${state.units}`;
               if (requestCache.current.has(cacheKey)) {
                 const cachedEntry = requestCache.current.get(cacheKey);
                 if (cachedEntry.expiresAt > Date.now()) {
+                  console.log('Using cached geolocation weather');
                   const cachedData = cachedEntry.data;
                   dispatch({ 
                     type: 'SET_CURRENT_WEATHER', 
@@ -473,6 +496,8 @@ export const WeatherProvider = ({ children }) => {
                       daily: cachedData.daily
                     }
                   });
+                  dispatch({ type: 'SET_LOADING', payload: false });
+                  geolocationLastFetch.current = { timestamp: Date.now(), data: cachedData };
                   resolve(cachedData);
                   return;
                 } else {
@@ -482,6 +507,7 @@ export const WeatherProvider = ({ children }) => {
               }
 
               // Use the geolocation endpoint that returns both current weather and forecast
+              console.log('Fetching geolocation weather from API');
               const response = await api.get('/weather/geolocation', {
                 params: { lat: latitude, lon: longitude, units: state.units }
               });
@@ -512,29 +538,44 @@ export const WeatherProvider = ({ children }) => {
                   daily: data.daily
                 }
               });
+              
+              dispatch({ type: 'SET_LOADING', payload: false });
+              
               // store recent geolocation fetch
               geolocationLastFetch.current = { timestamp: Date.now(), data };
               
               resolve(data);
             } else {
+              dispatch({ type: 'SET_LOADING', payload: false });
               reject(new Error('Could not get coordinates from geolocation.'));
             }
           } catch (error) {
+            dispatch({ type: 'SET_LOADING', payload: false });
+            console.error('Error in geolocation success callback:', error);
             reject(error);
           }
         },
         (error) => {
+          // Clear timeout since we got an error
+          if (timeoutHandle) clearTimeout(timeoutHandle);
+          
+          dispatch({ type: 'SET_LOADING', payload: false });
+          
           let message = 'Unable to retrieve your location';
+          console.error('Geolocation error:', error);
+          
           switch (error.code) {
             case error.PERMISSION_DENIED:
-              message = 'Location access denied by user';
+              message = 'Location access denied. Please enable location permissions in your browser settings.';
               break;
             case error.POSITION_UNAVAILABLE:
-              message = 'Location information is unavailable';
+              message = 'Location information is unavailable. Please check if location services are enabled.';
               break;
             case error.TIMEOUT:
-              message = 'Location request timed out';
+              message = 'Location request timed out. Please try again.';
               break;
+            default:
+              message = error.message || 'Unable to retrieve your location';
           }
           reject(new Error(message));
         },
@@ -678,21 +719,7 @@ export const WeatherProvider = ({ children }) => {
     clearSearchHistory,
     toggleUnits,
     clearSearchResults
-  }), [
-    state,
-    getCurrentWeather,
-    getForecast,
-    getWeatherBundle,
-    searchCities,
-    getGeolocationWeather,
-    addToFavorites,
-    removeFromFavorites,
-    addToSearchHistory,
-    getSearchHistory,
-    clearSearchHistory,
-    toggleUnits,
-    clearSearchResults
-  ]);
+  }), [state]); // Only depend on state to prevent unnecessary re-renders
 
   return (
     <WeatherContext.Provider value={value}>

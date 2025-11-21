@@ -3,6 +3,7 @@ import { useAuth } from '../contexts/AuthContext';
 import { useWeather } from '../contexts/WeatherContext';
 import styled from 'styled-components';
 import { motion, AnimatePresence } from 'framer-motion';
+import toast from 'react-hot-toast';
 import Header from '../components/Header';
 import WeatherDisplay from '../components/WeatherDisplay';
 import SuggestionCard from '../components/SuggestionCard';
@@ -10,7 +11,6 @@ import { getSuggestions } from '../utils/suggestions';
 import SearchModal from '../components/SearchModal';
 import FavoritesModal from '../components/FavoritesModal';
 import DiscordSettings from '../components/DiscordSettings';
-import WeatherTrendChart from '../components/WeatherTrendChart';
 import WeatherMap from '../components/WeatherMap';
 import LoadingSpinner from '../components/LoadingSpinner';
 
@@ -111,19 +111,18 @@ const LeftPanel = styled(motion.div)`
 
 const RightPanel = styled(motion.div)`
   flex: 1;
-  background: var(--card-background-light);
-  backdrop-filter: blur(10px);
-  border-left: 1px solid var(--border-color-light);
+  background: var(--card-background);
+  backdrop-filter: blur(8px);
+  border-left: 1px solid var(--border-color);
   padding: 40px;
   overflow-y: auto;
-  /* keep panel height tied to MainContent to avoid reflow */
   position: relative;
   height: 100%;
   box-sizing: border-box;
 
   @media (max-width: 768px) {
     border-left: none;
-    border-top: 1px solid var(--border-color-light);
+    border-top: 1px solid var(--border-color);
     padding: 20px;
     position: relative;
     height: auto;
@@ -187,12 +186,7 @@ const Home = () => {
       try {
         // Only load if we don't already have weather data
         if (!currentWeather) {
-          if (user?.lastLocation) {
-            // Use geolocation endpoint for better performance (single API call)
-            await getGeolocationWeather();
-          } else {
-            await getGeolocationWeather();
-          }
+          await getGeolocationWeather();
         }
       } catch (error) {
         console.error('Failed to load initial weather:', error);
@@ -202,14 +196,16 @@ const Home = () => {
     // Add a small delay to prevent race conditions
     const timeoutId = setTimeout(loadInitialWeather, 100);
     return () => clearTimeout(timeoutId);
-  }, [user, currentWeather, getGeolocationWeather]);
+  }, [currentWeather]); // Remove getGeolocationWeather from dependencies to prevent re-running
 
   const handleGetCurrentLocation = async () => {
     try {
       const result = await getGeolocationWeather();
       console.log('Location weather loaded:', result);
+      toast.success('Location updated successfully!');
     } catch (error) {
       console.error('Failed to get current location weather:', error);
+      toast.error(error?.message || 'Failed to get your location. Please try again.');
     }
   };
 
@@ -299,12 +295,6 @@ const Home = () => {
                     forecast={forecast}
                     isDetailsPanel
                   />
-                  {currentWeather?.location?.lat && currentWeather?.location?.lon && (
-                    <WeatherTrendChart 
-                      lat={currentWeather.location.lat}
-                      lon={currentWeather.location.lon}
-                    />
-                  )}
                   {currentWeather?.location?.lat && currentWeather?.location?.lon && (
                     <WeatherMap 
                       lat={currentWeather.location.lat}

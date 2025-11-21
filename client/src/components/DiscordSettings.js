@@ -8,13 +8,14 @@ import api from '../services/api';
 import toast from 'react-hot-toast';
 
 const DiscordContainer = styled.div`
-  background: rgba(255, 255, 255, 0.1);
-  backdrop-filter: blur(10px);
-  border: 1px solid rgba(255, 255, 255, 0.2);
-  border-radius: 20px;
-  padding: 30px;
-  margin-bottom: 30px;
-  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1);
+  background: var(--card-background);
+  backdrop-filter: blur(8px);
+  border: 1px solid var(--border-color);
+  border-radius: 16px;
+  padding: 24px;
+  margin-bottom: 24px;
+  box-shadow: var(--shadow-sm);
+  transition: all var(--transition-normal);
 `;
 
 const Header = styled.div`
@@ -24,19 +25,19 @@ const Header = styled.div`
   margin-bottom: 25px;
   
   h3 {
-    color: white;
+    color: var(--text-color);
     font-size: 1.5rem;
     font-weight: 600;
   }
 `;
 
 const StatusCard = styled.div`
-  background: linear-gradient(135deg, rgba(88, 101, 242, 0.1) 0%, rgba(118, 75, 162, 0.1) 100%);
-  border-radius: 15px;
-  padding: 25px;
-  margin-bottom: 20px;
-  border: 1px solid ${props => props.connected ? 'rgba(34, 197, 94, 0.5)' : 'rgba(239, 68, 68, 0.5)'};
-  backdrop-filter: blur(5px);
+  background: var(--transparent-bg);
+  border-radius: 12px;
+  padding: 18px;
+  margin-bottom: 18px;
+  border: 1px solid ${props => props.connected ? 'rgba(34,197,94,0.12)' : 'rgba(239,68,68,0.12)'};
+  backdrop-filter: blur(6px);
 `;
 
 const StatusIndicator = styled.div`
@@ -54,17 +55,17 @@ const StatusIndicator = styled.div`
   }
   
   .status-text {
-    color: white;
+    color: var(--text-color);
     font-weight: 600;
     font-size: 1.1rem;
   }
 `;
 
 const StatusInfo = styled.div`
-  color: rgba(255, 255, 255, 0.9);
+  color: var(--text-color);
+  opacity: 0.9;
   font-size: 0.95rem;
   line-height: 1.8;
-  
   p {
     margin: 8px 0;
   }
@@ -78,12 +79,10 @@ const Button = styled.button`
   padding: 14px 24px;
   background: ${props => props.variant === 'primary' 
     ? 'linear-gradient(135deg, #5865F2 0%, #7289DA 100%)' 
-    : 'rgba(255, 255, 255, 0.1)'};
-  border: ${props => props.variant === 'primary' 
-    ? 'none' 
-    : '1px solid rgba(255, 255, 255, 0.3)'};
+    : 'var(--transparent-bg)'};
+  border: 1px solid var(--border-color);
   border-radius: 12px;
-  color: white;
+  color: var(--text-color);
   font-size: 15px;
   font-weight: 600;
   cursor: pointer;
@@ -98,7 +97,7 @@ const Button = styled.button`
     transform: translateY(-2px);
     box-shadow: ${props => props.variant === 'primary' 
       ? '0 6px 20px rgba(88, 101, 242, 0.6)' 
-      : '0 4px 12px rgba(0, 0, 0, 0.1)'};
+      : 'var(--shadow-sm)'};
   }
 
   &:disabled {
@@ -111,16 +110,17 @@ const Button = styled.button`
 const Input = styled.input`
   width: 100%;
   padding: 14px 16px;
-  border: 1px solid rgba(255, 255, 255, 0.3);
+  border: 1px solid var(--border-color);
   border-radius: 12px;
-  background: rgba(255, 255, 255, 0.08);
-  color: white;
+  background: var(--transparent-bg);
+  color: var(--text-color);
   font-size: 15px;
   margin-bottom: 15px;
   transition: all 0.3s ease;
 
   &::placeholder {
-    color: rgba(255, 255, 255, 0.6);
+    color: var(--text-color);
+    opacity: 0.6;
   }
 
   &:focus {
@@ -132,7 +132,7 @@ const Input = styled.input`
 `;
 
 const Label = styled.label`
-  color: white;
+  color: var(--text-color);
   font-size: 14px;
   font-weight: 500;
   margin-bottom: 8px;
@@ -149,17 +149,18 @@ const NotificationSettings = styled.div`
 `;
 
 const ConnectPanel = styled.div`
-  background: #fff;
+  background: var(--card-background);
   color: var(--text-color);
   border-radius: 12px;
   padding: 0;
   margin-bottom: 20px;
-  border: 1px solid rgba(0,0,0,0.06);
+  border: 1px solid var(--border-color);
   overflow: hidden;
   display: flex;
   flex-direction: column;
   justify-content: space-between;
-  box-shadow: 0 6px 18px rgba(16,24,40,0.06);
+  box-shadow: var(--shadow-sm);
+  transition: all 0.25s ease;
 `;
 
 const SettingRow = styled.div`
@@ -168,7 +169,7 @@ const SettingRow = styled.div`
   justify-content: space-between;
   margin-bottom: 20px;
   padding: 15px;
-  background: rgba(255, 255, 255, 0.05);
+  background: var(--transparent-bg);
   border-radius: 12px;
   
   &:last-child {
@@ -177,7 +178,7 @@ const SettingRow = styled.div`
 `;
 
 const SettingLabel = styled.div`
-  color: white;
+  color: var(--text-color);
   font-size: 15px;
   font-weight: 500;
 `;
@@ -186,7 +187,7 @@ const ToggleButton = styled.button`
   width: 56px;
   height: 30px;
   border-radius: 25px;
-  background: ${props => props.active ? 'linear-gradient(135deg, #22c55e 0%, #16a34a 100%)' : 'rgba(255, 255, 255, 0.15)'};
+  background: ${props => props.active ? 'linear-gradient(135deg, #22c55e 0%, #16a34a 100%)' : 'var(--transparent-bg)'};
   border: none;
   cursor: pointer;
   position: relative;
@@ -336,13 +337,13 @@ const DiscordSettings = () => {
         <StatusInfo>
           {discordStatus.connected ? (
             <>
-              <p>✅ Discord account is connected</p>
-              <p>📱 Notifications: {discordStatus.subscribed ? 'Enabled' : 'Disabled'}</p>
+              <p>Discord account is connected</p>
+              <p>Notifications: {discordStatus.subscribed ? 'Enabled' : 'Disabled'}</p>
               {discordStatus.notificationCity && (
-                <p>🌍 City: {discordStatus.notificationCity}</p>
+                <p>City: {discordStatus.notificationCity}</p>
               )}
               {discordStatus.lastNotification && (
-                <p>⏰ Last notification: {new Date(discordStatus.lastNotification).toLocaleString()}</p>
+                <p>Last notification: {new Date(discordStatus.lastNotification).toLocaleString()}</p>
               )}
             </>
           ) : (
@@ -360,8 +361,8 @@ const DiscordSettings = () => {
           {/* Visual connect panel (collapsed) */}
           <ConnectPanel>
             <div style={{ padding: 20, minHeight: 160 }}>
-              <Label style={{ fontSize: '1.05rem', marginBottom: '8px' }}>🔗 Not Connected</Label>
-              <div style={{ color: 'rgba(255,255,255,0.7)', fontSize: 14 }}>
+              <Label style={{ fontSize: '1.05rem', marginBottom: '8px' }}>Not Connected</Label>
+              <div style={{ color: 'var(--text-color)', fontSize: 14, opacity: 0.7 }}>
                 Connect your Discord account to receive weather notifications
               </div>
             </div>
@@ -411,7 +412,7 @@ const DiscordSettings = () => {
         </motion.div>
       ) : (
         <NotificationSettings>
-          <h4 style={{ color: 'white', marginBottom: '20px', fontSize: '1.1rem' }}>
+          <h4 style={{ color: 'var(--text-color)', marginBottom: '20px', fontSize: '1.1rem' }}>
             Notification Settings
           </h4>
           
@@ -467,14 +468,14 @@ const DiscordSettings = () => {
       )}
 
       <div style={{ marginTop: '25px', padding: '20px', background: 'rgba(88, 101, 242, 0.1)', borderRadius: '15px', border: '1px solid rgba(88, 101, 242, 0.2)' }}>
-        <h4 style={{ color: 'white', marginBottom: '12px', fontSize: '1.05rem', fontWeight: '600' }}>
-          📋 Discord Bot Commands:
+        <h4 style={{ color: 'var(--text-color)', marginBottom: '12px', fontSize: '1.05rem', fontWeight: '600' }}>
+          Discord Bot Commands:
         </h4>
-        <ul style={{ color: 'rgba(255, 255, 255, 0.85)', fontSize: '0.95rem', lineHeight: '1.8', margin: 0, paddingLeft: '20px' }}>
-          <li><code style={{ background: 'rgba(0, 0, 0, 0.2)', padding: '2px 6px', borderRadius: '4px' }}>/weather [city]</code> - Get current weather</li>
-          <li><code style={{ background: 'rgba(0, 0, 0, 0.2)', padding: '2px 6px', borderRadius: '4px' }}>/forecast [city]</code> - Get 5-day forecast</li>
-          <li><code style={{ background: 'rgba(0, 0, 0, 0.2)', padding: '2px 6px', borderRadius: '4px' }}>/subscribe [city]</code> - Subscribe to hourly updates</li>
-          <li><code style={{ background: 'rgba(0, 0, 0, 0.2)', padding: '2px 6px', borderRadius: '4px' }}>/unsubscribe</code> - Stop notifications</li>
+        <ul style={{ color: 'var(--text-color)', fontSize: '0.95rem', lineHeight: '1.8', margin: 0, paddingLeft: '20px', opacity: 0.85 }}>
+          <li><code style={{ background: 'var(--transparent-bg)', padding: '2px 6px', borderRadius: '4px' }}>/weather [city]</code> - Get current weather</li>
+          <li><code style={{ background: 'var(--transparent-bg)', padding: '2px 6px', borderRadius: '4px' }}>/forecast [city]</code> - Get 5-day forecast</li>
+          <li><code style={{ background: 'var(--transparent-bg)', padding: '2px 6px', borderRadius: '4px' }}>/subscribe [city]</code> - Subscribe to hourly updates</li>
+          <li><code style={{ background: 'var(--transparent-bg)', padding: '2px 6px', borderRadius: '4px' }}>/unsubscribe</code> - Stop notifications</li>
         </ul>
       </div>
     </DiscordContainer>
