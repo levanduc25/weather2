@@ -5,8 +5,9 @@ import { Toaster } from 'react-hot-toast';
 import App from './App';
 import { AuthProvider } from './contexts/AuthContext';
 import { WeatherProvider } from './contexts/WeatherContext';
-import { ThemeProvider } from './contexts/ThemeContext'; // Import ThemeProvider
+import { ThemeProvider } from './contexts/ThemeContext';
 import './assets/css/index.css';
+import './assets/css/admin.css';
 
 const root = ReactDOM.createRoot(document.getElementById('root'));
 root.render(
@@ -14,7 +15,7 @@ root.render(
     <BrowserRouter>
       <AuthProvider>
         <WeatherProvider>
-          <ThemeProvider> {/* Wrap App with ThemeProvider */}
+          <ThemeProvider>
             <App />
             <Toaster 
               position="top-right"

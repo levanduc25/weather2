@@ -9,9 +9,28 @@ const User = require('../models/User');
 
 class WeatherDiscordBot {
   constructor() {
+    // THÊM KIỂM TRA BIẾN MÔI TRƯỜNG
+    this.clientId = process.env.DISCORD_CLIENT_ID || process.env.DISCORD_BOT_ID;
+    this.token = process.env.DISCORD_TOKEN;
+
+    // Kiểm tra các biến bắt buộc
+    if (!this.clientId) {
+      throw new Error('DISCORD_CLIENT_ID or DISCORD_BOT_ID not found in environment variables');
+    }
+
+    if (!this.token) {
+      throw new Error('DISCORD_TOKEN not found in environment variables');
+    }
+
+    // Log để debug
+    console.log('Discord Client ID:', this.clientId);
+    console.log('Discord Token:', this.token ? '✓ Token loaded' : '✗ Token missing');
+
     this.client = new Client({
       intents: [
-        GatewayIntentBits.Guilds
+        GatewayIntentBits.Guilds,
+        GatewayIntentBits.GuildMessages,
+        GatewayIntentBits.DirectMessages
       ]
     });
 
@@ -21,7 +40,8 @@ class WeatherDiscordBot {
   }
 
   setupEventHandlers() {
-    this.client.once('ready', () => {
+    // SỬA: Đổi 'ready' thành 'clientReady' để tránh warning
+    this.client.once('clientReady', () => {
       console.log(`Discord bot logged in as ${this.client.user.tag}!`);
       this.registerSlashCommands();
     });
@@ -50,10 +70,14 @@ class WeatherDiscordBot {
         }
       } catch (error) {
         console.error('Error handling command:', error);
-        await interaction.reply({ 
-          content: 'An error occurred while processing your command.', 
-          ephemeral: true 
-        });
+        
+        // Kiểm tra xem đã reply chưa
+        if (!interaction.replied && !interaction.deferred) {
+          await interaction.reply({ 
+            content: 'An error occurred while processing your command.', 
+            ephemeral: true 
+          });
+        }
       }
     });
   }
@@ -99,19 +123,21 @@ class WeatherDiscordBot {
   }
 
   async registerSlashCommands() {
-    const rest = new REST({ version: '10' }).setToken(process.env.DISCORD_TOKEN);
+    const rest = new REST({ version: '10' }).setToken(this.token);
 
     try {
       console.log('Started refreshing application (/) commands.');
 
+      // SỬA: Dùng this.clientId thay vì process.env.DISCORD_CLIENT_ID
       await rest.put(
-        Routes.applicationCommands(process.env.DISCORD_CLIENT_ID),
+        Routes.applicationCommands(this.clientId),
         { body: this.commands }
       );
 
       console.log('Successfully reloaded application (/) commands.');
     } catch (error) {
       console.error('Error registering commands:', error);
+      throw error; // Re-throw để dừng bot nếu không đăng ký được commands
     }
   }
 
@@ -124,6 +150,7 @@ class WeatherDiscordBot {
       
       await interaction.reply({ embeds: [embed] });
     } catch (error) {
+      console.error('Weather command error:', error);
       await interaction.reply({ 
         content: `Could not find weather data for ${city}. Please check the city name.`, 
         ephemeral: true 
@@ -137,12 +164,14 @@ class WeatherDiscordBot {
     const discordUserId = interaction.user.id;
 
     try {
+      // Defer reply for long operations
+      await interaction.deferReply({ ephemeral: true });
+
       // Find user by email and update Discord info
       const user = await User.findOne({ email });
       if (!user) {
-        await interaction.reply({ 
-          content: 'User not found. Please make sure you have an account in the weather app with that email.', 
-          ephemeral: true 
+        await interaction.editReply({ 
+          content: 'User not found. Please make sure you have an account in the weather app with that email.'
         });
         return;
       }
@@ -172,13 +201,19 @@ class WeatherDiscordBot {
         .setColor(0x00AE86)
         .setTimestamp();
 
-      await interaction.reply({ embeds: [embed] });
+      await interaction.editReply({ embeds: [embed] });
     } catch (error) {
       console.error('Subscribe error:', error);
-      await interaction.reply({ 
-        content: `Error subscribing to notifications. Please check the city name and try again.`, 
-        ephemeral: true 
-      });
+      
+      const errorMessage = error.response?.status === 404 
+        ? `Could not find weather data for "${city}". Please check the city name.`
+        : 'Error subscribing to notifications. Please try again later.';
+      
+      if (interaction.deferred) {
+        await interaction.editReply({ content: errorMessage });
+      } else {
+        await interaction.reply({ content: errorMessage, ephemeral: true });
+      }
     }
   }
 
@@ -221,6 +256,7 @@ class WeatherDiscordBot {
       
       await interaction.reply({ embeds: [embed] });
     } catch (error) {
+      console.error('Forecast command error:', error);
       await interaction.reply({ 
         content: `Could not find forecast data for ${city}. Please check the city name.`, 
         ephemeral: true 
@@ -244,7 +280,7 @@ class WeatherDiscordBot {
       temperature: Math.round(data.main.temp),
       feelsLike: Math.round(data.main.feels_like),
       humidity: data.main.humidity,
-      windSpeed: data.wind.speed,
+      windSpeed: Math.round(data.wind.speed * 3.6), // Convert m/s to km/h
       description: data.weather[0].description,
       icon: data.weather[0].icon,
       main: data.weather[0].main
@@ -358,6 +394,8 @@ class WeatherDiscordBot {
       console.log('Running daily weather summary...');
       await this.sendDailySummary();
     });
+
+    console.log('✓ Scheduled notifications set up');
   }
 
   async sendHourlyNotifications() {
@@ -366,6 +404,8 @@ class WeatherDiscordBot {
         'discord.subscribed': true,
         'discord.userId': { $exists: true }
       });
+
+      console.log(`Found ${subscribedUsers.length} subscribed users`);
 
       for (const user of subscribedUsers) {
         try {
@@ -383,9 +423,9 @@ class WeatherDiscordBot {
           user.discord.lastNotification = new Date();
           await user.save();
 
-          console.log(`Sent hourly notification to user ${user.username} for ${user.discord.notificationCity}`);
+          console.log(`✓ Sent hourly notification to ${user.username} for ${user.discord.notificationCity}`);
         } catch (error) {
-          console.error(`Error sending notification to user ${user.username}:`, error);
+          console.error(`✗ Error sending notification to ${user.username}:`, error.message);
         }
       }
     } catch (error) {
@@ -400,6 +440,8 @@ class WeatherDiscordBot {
         'discord.userId': { $exists: true }
       });
 
+      console.log(`Found ${subscribedUsers.length} subscribed users for daily summary`);
+
       for (const user of subscribedUsers) {
         try {
           const forecastData = await this.getForecastData(user.discord.notificationCity);
@@ -411,9 +453,9 @@ class WeatherDiscordBot {
             embeds: [embed] 
           });
 
-          console.log(`Sent daily summary to user ${user.username} for ${user.discord.notificationCity}`);
+          console.log(`✓ Sent daily summary to ${user.username} for ${user.discord.notificationCity}`);
         } catch (error) {
-          console.error(`Error sending daily summary to user ${user.username}:`, error);
+          console.error(`✗ Error sending daily summary to ${user.username}:`, error.message);
         }
       }
     } catch (error) {
@@ -425,12 +467,12 @@ class WeatherDiscordBot {
     try {
       // Connect to MongoDB
       await mongoose.connect(process.env.MONGODB_URI || 'mongodb://localhost:27017/weather-app');
-      console.log('Connected to MongoDB');
+      console.log('✓ Connected to MongoDB');
 
       // Login to Discord
-      await this.client.login(process.env.DISCORD_TOKEN);
+      await this.client.login(this.token);
     } catch (error) {
-      console.error('Error starting Discord bot:', error);
+      console.error('✗ Error starting Discord bot:', error);
       process.exit(1);
     }
   }

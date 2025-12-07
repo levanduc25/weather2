@@ -11,11 +11,13 @@ import {
   FiX,
   FiSettings,
   FiMoon,
-  FiSun
+  FiSun,
+  FiShield
 } from 'react-icons/fi';
 import { FaDiscord } from 'react-icons/fa';
 import { useNavigate } from 'react-router-dom';
 import { useTheme } from '../contexts/ThemeContext';
+import { useAuth } from '../contexts/AuthContext';
 
 const HeaderContainer = styled.header`
   position: fixed;
@@ -286,6 +288,7 @@ const Header = ({
   const [showMobileMenu, setShowMobileMenu] = useState(false);
   const navigate = useNavigate();
   const { theme, toggleTheme } = useTheme();
+  const { isAdmin } = useAuth();
 
   const handleUserMenuToggle = () => {
     setShowUserMenu(!showUserMenu);
@@ -298,6 +301,11 @@ const Header = ({
 
   const handleSettingsClick = () => {
     navigate('/settings');
+    setShowUserMenu(false);
+  };
+
+  const handleAdminClick = () => {
+    navigate('/admin');
     setShowUserMenu(false);
   };
 
@@ -352,7 +360,13 @@ const Header = ({
                 exit={{ opacity: 0, y: -10 }}
                 transition={{ duration: 0.2 }}
               >
-                <DropdownItem onClick={handleSettingsClick}> {/* New Settings Item */}
+                {isAdmin() && (
+                  <DropdownItem onClick={handleAdminClick}>
+                    <FiShield />
+                    Admin Dashboard
+                  </DropdownItem>
+                )}
+                <DropdownItem onClick={handleSettingsClick}>
                   <FiSettings />
                   Settings
                 </DropdownItem>
@@ -411,6 +425,13 @@ const Header = ({
                 {theme === 'light' ? <FiMoon /> : <FiSun />}
                 <span>{theme === 'light' ? 'Dark Mode' : 'Light Mode'}</span>
               </Button>
+
+              {isAdmin() && (
+                <Button onClick={() => { handleAdminClick(); setShowMobileMenu(false); }}>
+                  <FiShield />
+                  <span>Admin Dashboard</span>
+                </Button>
+              )}
 
               <Button onClick={() => { handleSettingsClick(); setShowMobileMenu(false); }}>
                 <FiSettings />

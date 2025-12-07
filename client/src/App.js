@@ -9,6 +9,9 @@ import LoadingSpinner from './components/LoadingSpinner';
 import ErrorBoundary from './components/ErrorBoundary';
 import { initializeConnectionTest } from './utils/connectionTest';
 import CCCDRegister from './components/auth/CCCDRegister';
+import AdminDashboard from './pages/AdminDashboard';
+import AdminUsers from './pages/AdminUsers';
+import AdminAnalytics from './pages/AdminAnalytics';
 
 const PrivateRoute = ({ children }) => {
   const { isAuthenticated, loading } = useAuth();
@@ -18,6 +21,16 @@ const PrivateRoute = ({ children }) => {
   }
 
   return isAuthenticated ? children : <Navigate to="/login" replace />;
+};
+
+// Admin-only route wrapper
+const AdminRoute = ({ children }) => {
+  const { isAuthenticated, loading, user } = useAuth();
+  if (loading) return <LoadingSpinner />;
+  if (!isAuthenticated) return <Navigate to="/login" replace />;
+  // check role admin (backend also enforces)
+  if (!user || user.role !== 'admin') return <Navigate to="/" replace />;
+  return children;
 };
 
 function App() {
@@ -54,6 +67,18 @@ function App() {
           <Route 
             path="/settings" 
             element={<PrivateRoute><Settings /></PrivateRoute>} 
+          />
+          <Route 
+            path="/admin" 
+            element={<AdminRoute><AdminDashboard /></AdminRoute>} 
+          />
+          <Route 
+            path="/admin/users" 
+            element={<AdminRoute><AdminUsers /></AdminRoute>} 
+          />
+          <Route 
+            path="/admin/analytics" 
+            element={<AdminRoute><AdminAnalytics /></AdminRoute>} 
           />
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>

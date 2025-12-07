@@ -209,13 +209,18 @@ export const AuthProvider = ({ children }) => {
     });
   }, []);
 
+  const isAdmin = useCallback(() => {
+    return state.user && state.user.role === 'admin';
+  }, [state.user]);
+
   const value = useMemo(() => ({
     ...state,
     login,
     register,
     logout,
-    updateUser
-  }), [state, login, register, logout, updateUser]);
+    updateUser,
+    isAdmin
+  }), [state, login, register, logout, updateUser, isAdmin]);
 
   return (
     <AuthContext.Provider value={value}>

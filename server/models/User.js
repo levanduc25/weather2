@@ -59,6 +59,19 @@ const userSchema = new mongoose.Schema(
       type: Boolean,
       default: false,
     },
+    // Admin-managed ban flag
+    banned: {
+      type: Boolean,
+      default: false,
+      index: true
+    },
+    // User role (for role-based access control)
+    role: {
+      type: String,
+      enum: ['user', 'admin'],
+      default: 'user',
+      index: true
+    },
     verificationToken: String,
     verificationExpires: Date,
     passwordResetToken: String,
@@ -199,6 +212,7 @@ userSchema.methods.getPublicProfile = function () {
     dateOfBirth: user.dateOfBirth,
     gender: user.gender,
     preferences: user.preferences,
+    role: user.role,
     createdAt: user.createdAt,
   };
 };

@@ -1,0 +1,195 @@
+.admin-dashboard,
+.admin-users {
+  margin: 0 auto;
+  max-width: 1200px;
+}
+
+.admin-dashboard h2,
+.admin-users h2 {
+  color: var(--text-color);
+  margin-bottom: 20px;
+  font-size: 24px;
+}
+
+/* Stats Cards */
+.stats-cards {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 12px;
+  margin-bottom: 20px;
+}
+
+.stats-cards .card {
+  background: var(--card-bg);
+  border: 1px solid var(--muted);
+  border-radius: 6px;
+  padding: 16px;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+}
+
+.stats-cards .card .label {
+  color: var(--muted);
+  font-size: 12px;
+  text-transform: uppercase;
+  margin-bottom: 8px;
+}
+
+.stats-cards .card .value {
+  color: var(--primary);
+  font-size: 28px;
+  font-weight: bold;
+}
+
+/* Users List */
+.admin-users table {
+  width: 100%;
+  border-collapse: collapse;
+  background: var(--card-bg);
+  border-radius: 6px;
+  overflow: hidden;
+}
+
+.admin-users table thead {
+  background: var(--transparent-bg);
+  border-bottom: 1px solid var(--muted);
+}
+
+.admin-users table th {
+  padding: 12px;
+  text-align: left;
+  color: var(--text-color);
+  font-weight: 600;
+}
+
+.admin-users table td {
+  padding: 12px;
+  border-top: 1px solid var(--muted);
+  color: var(--text-color);
+}
+
+.admin-users table img {
+  border-radius: 50%;
+}
+
+.admin-users table button {
+  background: var(--primary);
+  color: white;
+  border: none;
+  padding: 6px 12px;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 12px;
+  margin-right: 8px;
+}
+
+.admin-users table button:hover {
+  opacity: 0.8;
+}
+
+.admin-users table button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+/* Filters */
+.admin-users > div:first-of-type {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 12px;
+}
+
+.admin-users input,
+.admin-users select {
+  padding: 8px;
+  border: 1px solid var(--muted);
+  border-radius: 4px;
+  background: var(--card-bg);
+  color: var(--text-color);
+}
+
+.admin-users input:focus,
+.admin-users select:focus {
+  outline: none;
+  border-color: var(--primary);
+}
+
+/* Pagination */
+.admin-users > div:last-of-type {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  margin-top: 16px;
+  justify-content: center;
+}
+
+.admin-users button {
+  background: var(--primary);
+  color: white;
+  border: none;
+  padding: 8px 16px;
+  border-radius: 4px;
+  cursor: pointer;
+}
+
+.admin-users button:hover:not(:disabled) {
+  opacity: 0.8;
+}
+
+.admin-users button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+/* User Detail Modal */
+.modal {
+  background: rgba(0, 0, 0, 0.5);
+  z-index: 1000;
+}
+
+.modal > div {
+  background: var(--card-bg);
+  color: var(--text-color);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+}
+
+.modal input,
+.modal textarea {
+  background: var(--bg);
+  color: var(--text-color);
+  border: 1px solid var(--muted);
+  border-radius: 4px;
+  padding: 8px;
+  margin-top: 4px;
+  width: 100%;
+  box-sizing: border-box;
+}
+
+.modal input:focus,
+.modal textarea:focus {
+  outline: none;
+  border-color: var(--primary);
+}
+
+.modal ul {
+  list-style: none;
+  padding: 0;
+  margin: 8px 0;
+}
+
+.modal ul li {
+  padding: 4px 0;
+  font-size: 12px;
+  color: var(--muted);
+}
+
+.page-container {
+  padding: 16px;
+}
+
+.error {
+  background: var(--error-bg, rgba(220, 53, 69, 0.1));
+  color: #dc3545;
+  padding: 12px;
+  border-radius: 4px;
+  margin-bottom: 12px;
+}

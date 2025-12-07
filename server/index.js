@@ -12,6 +12,9 @@ const weatherRoutes = require('./routes/weather');
 const userRoutes = require('./routes/user');
 const discordRoutes = require('./routes/discord');
 const cccdRoutes = require('./routes/cccd');
+const adminRoutes = require('./routes/admin');
+const adminUsersRoutes = require('./routes/adminUsers');
+const adminUserAnalyticsRoutes = require('./routes/adminUserAnalytics');
 
 const app = express();
 
@@ -42,12 +45,19 @@ app.use(limiter);
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true }));
 
+// Metrics middleware (logs lightweight api events)
+const metrics = require('./middleware/metrics');
+app.use(metrics);
+
 // Routes
 app.use('/api/auth', authRoutes);
 app.use('/api/cccd', cccdRoutes);
 app.use('/api/weather', weatherRoutes);
 app.use('/api/user', userRoutes);
 app.use('/api/discord', discordRoutes);
+app.use('/api/admin', adminRoutes);
+app.use('/api/admin/users', adminUsersRoutes);
+app.use('/api/admin/user-analytics', adminUserAnalyticsRoutes);
 
 // Health check endpoint
 app.get('/api/health', (req, res) => {

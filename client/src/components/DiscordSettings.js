@@ -217,7 +217,7 @@ const DiscordSettings = () => {
   });
   const [loading, setLoading] = useState(false);
   const [discordUserId, setDiscordUserId] = useState('');
-  const [channelId, setChannelId] = useState('');
+  const [serverId, setServerId] = useState('');
   const [notificationCity, setNotificationCity] = useState('');
   const [showConnectForm, setShowConnectForm] = useState(false);
   const { searchCities } = useWeather();
@@ -237,19 +237,48 @@ const DiscordSettings = () => {
   };
 
   const handleConnectDiscord = async () => {
-    if (!discordUserId || !channelId) {
-      toast.error('Please enter Discord User ID and Channel ID');
+    if (!discordUserId || !serverId) {
+      toast.error('Please enter Discord User ID and Server ID');
       return;
     }
 
     try {
       setLoading(true);
-      await api.post('/discord/connect', {
+      const response = await api.post('/discord/connect', {
         discordUserId,
-        channelId
+        serverId
       });
       
       toast.success('Discord account connected successfully!');
+      
+      // Show invite URL if provided
+      if (response.data.inviteUrl) {
+        toast((t) => (
+          <div>
+            <p>Make sure the bot is in your server!</p>
+            <a 
+              href={response.data.inviteUrl} 
+              target="_blank" 
+              rel="noopener noreferrer"
+              style={{
+                display: 'inline-block',
+                marginTop: '8px',
+                padding: '8px 16px',
+                background: '#5865F2',
+                color: 'white',
+                borderRadius: '4px',
+                textDecoration: 'none'
+              }}
+            >
+              Add Bot to Server
+            </a>
+          </div>
+        ), { duration: 5000 });
+      }
+
+      setDiscordUserId('');
+      setServerId('');
+      setShowConnectForm(false);
       await loadDiscordStatus();
     } catch (error) {
       const message = error.response?.data?.message || 'Failed to connect Discord account';
@@ -386,14 +415,20 @@ const DiscordSettings = () => {
                   value={discordUserId}
                   onChange={(e) => setDiscordUserId(e.target.value)}
                 />
+                <p style={{ fontSize: '0.85rem', color: 'var(--muted-color)', marginBottom: '15px' }}>
+                  How to find your Discord User ID? Enable Developer Mode (User Settings → Advanced → Developer Mode) then Right-click on your profile and select "Copy User ID"
+                </p>
                 
-                <Label>Channel ID (Optional - leave empty for DMs)</Label>
+                <Label>Discord Server ID</Label>
                 <Input
                   type="text"
-                  placeholder="Discord Channel ID"
-                  value={channelId}
-                  onChange={(e) => setChannelId(e.target.value)}
+                  placeholder="Discord Server ID"
+                  value={serverId}
+                  onChange={(e) => setServerId(e.target.value)}
                 />
+                <p style={{ fontSize: '0.85rem', color: 'var(--muted-color)', marginBottom: '15px' }}>
+                  How to find your Server ID? Right-click on the server name and select "Copy Server ID" (need Developer Mode enabled)
+                </p>
                 
                 <div style={{ display: 'flex', gap: 8 }}>
                   <Button 
