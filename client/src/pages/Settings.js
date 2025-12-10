@@ -1,8 +1,9 @@
 import React, { useState, useEffect } from 'react';
 import styled from 'styled-components';
 import { motion } from 'framer-motion';
-import { FiToggleLeft, FiToggleRight, FiSave } from 'react-icons/fi';
+import { FiToggleLeft, FiToggleRight, FiSave, FiX } from 'react-icons/fi';
 import { useTheme } from '../contexts/ThemeContext';
+import { useNavigate } from 'react-router-dom';
 
 const SettingsContainer = styled.div`
   padding: 100px 20px 40px 20px;
@@ -12,6 +13,7 @@ const SettingsContainer = styled.div`
   background: linear-gradient(135deg, var(--background-color) 0%, var(--card-background) 100%);
   min-height: 100vh;
   font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen', sans-serif;
+  position: relative;
 
   h1 {
     font-size: 2.8rem;
@@ -41,6 +43,39 @@ const SettingsContainer = styled.div`
     padding-bottom: 15px;
     border-bottom: 2px solid var(--primary-accent);
     opacity: 0.9;
+  }
+`;
+
+const CloseButton = styled.button`
+  position: absolute;
+  top: 30px;
+  right: 30px;
+  background: rgba(255,255,255,0.1);
+  border: none;
+  color: var(--text-color);
+  font-size: 1.5rem;
+  cursor: pointer;
+  opacity: 0.8;
+  transition: all 0.3s ease;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  z-index: 1000;
+  backdrop-filter: blur(4px);
+
+  &:hover {
+    opacity: 1;
+    transform: scale(1.1);
+    background: var(--card-background);
+    box-shadow: var(--shadow-md);
+  }
+
+  @media (max-width: 768px) {
+    top: 20px;
+    right: 20px;
   }
 `;
 
@@ -115,29 +150,6 @@ const InputField = styled.input`
   }
 `;
 
-const SelectField = styled.select`
-  padding: 12px 16px;
-  border: 1px solid var(--border-color);
-  border-radius: 8px;
-  background: var(--transparent-bg);
-  color: var(--text-color);
-  font-size: 1rem;
-  transition: all var(--transition-fast);
-  cursor: pointer;
-  font-family: inherit;
-
-  &:focus {
-    outline: none;
-    border-color: var(--primary-accent);
-    background: var(--card-background);
-  }
-
-  option {
-    background: var(--card-background);
-    color: var(--text-color);
-  }
-`;
-
 const ToggleSwitch = styled.button`
   position: relative;
   display: inline-flex;
@@ -206,6 +218,7 @@ const SaveButton = styled.button`
 `;
 
 const Settings = () => {
+  const navigate = useNavigate();
   const { theme, toggleTheme } = useTheme();
   const [discordWebhook, setDiscordWebhook] = useState('');
   const [notificationsEnabled, setNotificationsEnabled] = useState(false);
@@ -255,6 +268,9 @@ const Settings = () => {
 
   return (
     <SettingsContainer>
+      <CloseButton onClick={() => navigate('/')} title="Close Settings">
+        <FiX />
+      </CloseButton>
       <motion.div
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}

@@ -6,36 +6,61 @@ import Charts from '../components/admin/Charts';
 import AdminLayout from '../components/admin/AdminLayout';
 
 const DashboardContainer = styled.div`
-  .header {
-    margin-bottom: 30px;
+  max-width: 1400px;
+  margin: 0 auto;
 
+  .header {
+    margin-bottom: 24px;
+    
     h1 {
-      margin: 0 0 10px 0;
+      margin: 0 0 8px 0;
       font-size: 2rem;
-      color: var(--text-color);
+      font-weight: 700;
+      background: linear-gradient(135deg, var(--primary-color) 0%, #764ba2 100%);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-clip: text;
     }
 
     .subtitle {
       color: var(--muted-color);
-      font-size: 0.95rem;
+      font-size: 1rem;
     }
   }
 
-  .loading,
-  .error {
-    padding: 20px;
+  .loading-container,
+  .error-container {
+    padding: 40px;
     text-align: center;
-    border-radius: 8px;
+    border-radius: 16px;
     background: var(--card-bg);
+    box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+    border: 1px solid var(--border-color);
   }
 
-  .error {
-    background: #ffe5e5;
+  .error-container {
+    background: linear-gradient(135deg, #fff5f5 0%, #ffe3e3 100%);
     color: #c92a2a;
+    border-color: #ffc9c9;
   }
 
-  .loading {
+  .loading-container {
     color: var(--muted-color);
+    font-size: 1.1rem;
+    
+    .spinner {
+      border: 3px solid rgba(0, 0, 0, 0.1);
+      border-left-color: var(--primary-color);
+      border-radius: 50%;
+      width: 40px;
+      height: 40px;
+      animation: spin 1s linear infinite;
+      margin: 0 auto 16px;
+    }
+  }
+
+  @keyframes spin {
+    to { transform: rotate(360deg); }
   }
 `;
 
@@ -47,22 +72,23 @@ export default function AdminDashboard() {
   useEffect(() => {
     let mounted = true;
     const fetchStats = async () => {
-      setLoading(true);
       try {
         const res = await api.get('/admin/stats');
-        if (!mounted) return;
-        setStats(res.data);
+        if (mounted) {
+          setStats(res.data);
+          setError(null);
+        }
       } catch (err) {
         console.error('Failed to load admin stats', err);
-        setError(err.response?.data?.message || err.message || 'Failed to load');
+        if (mounted) {
+          setError(err.response?.data?.message || err.message || 'Failed to load dashboard statistics');
+        }
       } finally {
         if (mounted) setLoading(false);
       }
     };
     fetchStats();
-    return () => {
-      mounted = false;
-    };
+    return () => { mounted = false; };
   }, []);
 
   return (
@@ -70,12 +96,24 @@ export default function AdminDashboard() {
       <DashboardContainer>
         <div className="header">
           <h1>Dashboard Overview</h1>
-          <p className="subtitle">Real-time statistics and analytics</p>
+          <p className="subtitle">Real-time statistics and system analytics</p>
         </div>
 
-        {loading && <div className="loading">Loading dashboard...</div>}
-        {error && <div className="error">{error}</div>}
-        {stats && (
+        {loading && (
+          <div className="loading-container">
+            <div className="spinner" />
+            Loading dashboard data...
+          </div>
+        )}
+
+        {error && (
+          <div className="error-container">
+            <h3>Error Loading Dashboard</h3>
+            <p>{error}</p>
+          </div>
+        )}
+
+        {!loading && !error && stats && (
           <>
             <StatsCards stats={stats} />
             <Charts />

@@ -3,6 +3,7 @@ const jwt = require('jsonwebtoken');
 const { body, validationResult } = require('express-validator');
 const User = require('../models/User');
 const auth = require('../middleware/auth');
+const { sendBannedUserLoginNotification } = require('../discord/webhook');
 
 const router = express.Router();
 
@@ -62,7 +63,7 @@ router.post('/register', [
     console.error('Registration error:', error.message);
     console.error('Stack trace:', error.stack);
     // Return detailed error message to help with debugging
-    res.status(500).json({ 
+    res.status(500).json({
       message: 'Server error during registration',
       error: error.message || 'Unknown error'
     });
@@ -83,6 +84,12 @@ router.post('/login', [
     const { email, password } = req.body;
     const user = await User.findOne({ email });
     if (!user) return res.status(400).json({ message: 'Invalid credentials' });
+
+    // Check if user is banned
+    if (user.banned) {
+      await sendBannedUserLoginNotification(user);
+      return res.status(403).json({ message: 'Your account has been banned. Please contact support.' });
+    }
 
     const isMatch = await user.comparePassword(password);
     if (!isMatch) return res.status(400).json({ message: 'Invalid credentials' });
@@ -109,6 +116,11 @@ router.post('/login/cccd', [
     const user = await User.findOne({ cccd: so_cccd });
     if (!user) return res.status(404).json({ message: 'CCCD chưa được đăng ký' });
 
+    // Check if user is banned
+    if (user.banned) {
+      await sendBannedUserLoginNotification(user);
+      return res.status(403).json({ message: 'Your account has been banned. Please contact support.' });
+    }
 
     const token = generateToken(user._id);
     res.json({ message: 'Login successful', token, user: user.getPublicProfile() });
@@ -125,6 +137,9 @@ router.get('/me', auth, async (req, res) => {
   try {
     const user = await User.findById(req.user._id);
     if (!user) return res.status(404).json({ message: 'User not found' });
+    if (user.banned) {
+      return res.status(403).json({ message: 'Your account has been banned.' });
+    }
     res.json({ user: user.getPublicProfile() });
   } catch (error) {
     console.error('Get user error:', error);

@@ -6,7 +6,7 @@ import UserDetailModal from '../components/admin/UserDetailModal';
 import AdminLayout from '../components/admin/AdminLayout';
 
 const UsersContainer = styled.div`
-  padding: 24px;
+  padding: 0;
   max-width: 1400px;
   margin: 0 auto;
 
@@ -16,15 +16,14 @@ const UsersContainer = styled.div`
     justify-content: space-between;
     align-items: center;
     padding-bottom: 20px;
-    border-bottom: 2px solid var(--border-color);
+    border-bottom: 1px solid var(--border-color);
 
     .title-section {
       h1 {
         margin: 0 0 8px 0;
         font-size: 2.25rem;
         font-weight: 700;
-        color: var(--text-color);
-        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        background: linear-gradient(135deg, var(--primary-color) 0%, #764ba2 100%);
         -webkit-background-clip: text;
         -webkit-text-fill-color: transparent;
         background-clip: text;
@@ -122,9 +121,9 @@ const UsersContainer = styled.div`
         input,
         select {
           padding: 12px 16px;
-          border: 2px solid var(--border-color);
+          border: 1px solid var(--border-color);
           border-radius: 10px;
-          background: var(--card-bg);
+          background: var(--bg-color);
           color: var(--text-color);
           font-size: 0.95rem;
           transition: all 0.3s ease;
@@ -133,27 +132,17 @@ const UsersContainer = styled.div`
             outline: none;
             border-color: var(--primary-color);
             box-shadow: 0 0 0 4px rgba(99, 102, 241, 0.1);
-            transform: translateY(-1px);
           }
 
           &::placeholder {
             color: var(--muted-color);
           }
         }
-
-        select {
-          cursor: pointer;
-          background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='%23667eea' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'%3E%3C/polyline%3E%3C/svg%3E");
-          background-repeat: no-repeat;
-          background-position: right 12px center;
-          padding-right: 40px;
-          appearance: none;
-        }
       }
 
       .search-button {
         padding: 12px 32px;
-        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        background: linear-gradient(135deg, var(--primary-color) 0%, #764ba2 100%);
         color: white;
         border: none;
         border-radius: 10px;
@@ -193,49 +182,21 @@ const UsersContainer = styled.div`
     min-height: 400px;
   }
 
-  .loading,
-  .error {
+  .loading-container {
     padding: 60px 20px;
     text-align: center;
-    border-radius: 12px;
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    gap: 16px;
-
+    color: var(--primary-color);
+    
     svg {
       width: 48px;
       height: 48px;
       animation: spin 1s linear infinite;
-    }
-
-    .message {
-      font-size: 1.1rem;
-      font-weight: 500;
-    }
-  }
-
-  .loading {
-    color: var(--primary-color);
-  }
-
-  .error {
-    background: linear-gradient(135deg, #ffe5e5 0%, #ffd1d1 100%);
-    color: #c92a2a;
-    border: 2px solid #ff6b6b;
-
-    svg {
-      animation: none;
+      margin-bottom: 16px;
     }
   }
 
   @keyframes spin {
-    from {
-      transform: rotate(0deg);
-    }
-    to {
-      transform: rotate(360deg);
-    }
+    to { transform: rotate(360deg); }
   }
 `;
 
@@ -267,12 +228,13 @@ export default function AdminUsers() {
   const handleDelete = useCallback(
     async (id) => {
       // eslint-disable-next-line no-restricted-globals
-      if (window.confirm('Delete this user?')) {
+      if (window.confirm('Delete this user? This action cannot be undone.')) {
         try {
           await api.delete(`/admin/users/${id}`);
           fetchUsers();
         } catch (err) {
           console.error('Delete failed', err);
+          alert('Failed to delete user');
         }
       }
     },
@@ -286,6 +248,7 @@ export default function AdminUsers() {
         fetchUsers();
       } catch (err) {
         console.error('Ban/unban failed', err);
+        alert(`Failed to ${action} user`);
       }
     },
     [fetchUsers]
@@ -307,7 +270,7 @@ export default function AdminUsers() {
               Manage users, view details, and control access
             </p>
           </div>
-          
+
           {data && (
             <div className="stats-summary">
               <div className="stat-item">
@@ -333,7 +296,7 @@ export default function AdminUsers() {
             <div className="input-group">
               <label>Search Users</label>
               <input
-                placeholder="Enter name or email..."
+                placeholder="Enter name, email or username..."
                 value={query}
                 onChange={(e) => setQuery(e.target.value)}
                 onKeyPress={(e) => e.key === 'Enter' && setPage(1)}
@@ -359,14 +322,14 @@ export default function AdminUsers() {
 
         <div className="content-card">
           {loading && (
-            <div className="loading">
+            <div className="loading-container">
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                 <path d="M21 12a9 9 0 1 1-6.219-8.56" />
               </svg>
-              <div className="message">Loading users...</div>
+              <div className="message">Loading users database...</div>
             </div>
           )}
-          
+
           {!loading && data && (
             <UsersTable
               users={data?.users || []}

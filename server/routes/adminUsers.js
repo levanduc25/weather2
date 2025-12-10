@@ -36,7 +36,7 @@ router.get('/', auth, isAdmin, async (req, res) => {
     const filter = {};
     if (q) {
       const regex = new RegExp(q.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'i');
-      filter.$or = [ { username: regex }, { email: regex }, { fullName: regex } ];
+      filter.$or = [{ username: regex }, { email: regex }, { fullName: regex }];
     }
     if (status === 'banned') filter.banned = true;
     if (status === 'active') filter.banned = { $ne: true };
