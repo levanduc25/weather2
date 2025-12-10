@@ -216,7 +216,8 @@ const DiscordSettings = () => {
     lastNotification: null
   });
   const [loading, setLoading] = useState(false);
-  const [webhookUrl, setWebhookUrl] = useState('');
+  const [discordUserId, setDiscordUserId] = useState('');
+  const [serverId, setServerId] = useState('');
   const [notificationCity, setNotificationCity] = useState('');
   const [showConnectForm, setShowConnectForm] = useState(false);
   const { searchCities } = useWeather();
@@ -236,24 +237,51 @@ const DiscordSettings = () => {
   };
 
   const handleConnectDiscord = async () => {
-    if (!webhookUrl) {
-      toast.error('Please enter a Webhook URL');
+    if (!discordUserId || !serverId) {
+      toast.error('Please enter Discord User ID and Server ID');
       return;
     }
 
     try {
       setLoading(true);
       const response = await api.post('/discord/connect', {
-        webhookUrl
+        discordUserId,
+        serverId
       });
 
-      toast.success('Discord Webhook connected successfully!');
+      toast.success('Discord account connected successfully!');
 
-      setWebhookUrl('');
+      // Show invite URL if provided
+      if (response.data.inviteUrl) {
+        toast((t) => (
+          <div>
+            <p>Make sure the bot is in your server!</p>
+            <a
+              href={response.data.inviteUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              style={{
+                display: 'inline-block',
+                marginTop: '8px',
+                padding: '8px 16px',
+                background: '#5865F2',
+                color: 'white',
+                borderRadius: '4px',
+                textDecoration: 'none'
+              }}
+            >
+              Add Bot to Server
+            </a>
+          </div>
+        ), { duration: 5000 });
+      }
+
+      setDiscordUserId('');
+      setServerId('');
       setShowConnectForm(false);
       await loadDiscordStatus();
     } catch (error) {
-      const message = error.response?.data?.message || 'Failed to connect Webhook';
+      const message = error.response?.data?.message || 'Failed to connect Discord account';
       toast.error(message);
     } finally {
       setLoading(false);
@@ -380,22 +408,27 @@ const DiscordSettings = () => {
           {showConnectForm && (
             <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 0.05 }}>
               <div style={{ background: 'rgba(255, 255, 255, 0.05)', padding: '25px', borderRadius: '15px', border: '1px solid rgba(88, 101, 242, 0.2)', marginTop: 16 }}>
-                <Label style={{ fontSize: '1.1rem', marginBottom: '20px' }}>🔗 Connect via Webhook</Label>
-                <div style={{ marginBottom: '20px', fontSize: '0.9rem', color: 'var(--text-color)', opacity: 0.8, lineHeight: '1.6' }}>
-                  To get notifications directly to your Discord server channel:
-                  <ol style={{ marginLeft: '20px', marginTop: '10px' }}>
-                    <li>Go to your Discord Server Settings {'>'} Integrations {'>'} Webhooks</li>
-                    <li>Click "New Webhook"</li>
-                    <li>Copy the "Webhook URL" and paste it below</li>
-                  </ol>
-                </div>
-
+                <Label style={{ fontSize: '1.1rem', marginBottom: '20px' }}>🔗 Connect your Discord Account</Label>
                 <Input
                   type="text"
-                  placeholder="Enter Discord Webhook URL (https://discord.com/api/webhooks/...)"
-                  value={webhookUrl}
-                  onChange={(e) => setWebhookUrl(e.target.value)}
+                  placeholder="Enter your Discord User ID"
+                  value={discordUserId}
+                  onChange={(e) => setDiscordUserId(e.target.value)}
                 />
+                <p style={{ fontSize: '0.85rem', color: 'var(--muted-color)', marginBottom: '15px' }}>
+                  How to find your Discord User ID? Enable Developer Mode (User Settings → Advanced → Developer Mode) then Right-click on your profile and select "Copy User ID"
+                </p>
+
+                <Label>Discord Server ID</Label>
+                <Input
+                  type="text"
+                  placeholder="Discord Server ID"
+                  value={serverId}
+                  onChange={(e) => setServerId(e.target.value)}
+                />
+                <p style={{ fontSize: '0.85rem', color: 'var(--muted-color)', marginBottom: '15px' }}>
+                  How to find your Server ID? Right-click on the server name and select "Copy Server ID" (need Developer Mode enabled)
+                </p>
 
                 <div style={{ display: 'flex', gap: 8 }}>
                   <Button
@@ -404,7 +437,7 @@ const DiscordSettings = () => {
                     disabled={loading}
                   >
                     <FaDiscord style={{ fontSize: '1.2rem' }} />
-                    Connect Webhook
+                    Connect Discord Account
                   </Button>
                   <Button onClick={() => setShowConnectForm(false)}>Cancel</Button>
                 </div>

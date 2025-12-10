@@ -145,8 +145,6 @@ const userSchema = new mongoose.Schema(
       trim: true,
     },
     discord: {
-      webhookUrl: String, // New method: Direct Webhook URL
-      // Deprecated fields (kept for backward compatibility or potential bot features)
       userId: String,
       channelId: String,
       subscribed: {

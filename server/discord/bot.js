@@ -400,35 +400,32 @@ class WeatherDiscordBot {
 
   async sendHourlyNotifications() {
     try {
-      // Find users who have subscribed and have a webhook URL
       const subscribedUsers = await User.find({
         'discord.subscribed': true,
-        'discord.webhookUrl': { $exists: true }
+        'discord.userId': { $exists: true }
       });
 
-      console.log(`Found ${subscribedUsers.length} subscribed users (via Webhook)`);
+      console.log(`Found ${subscribedUsers.length} subscribed users`);
 
       for (const user of subscribedUsers) {
         try {
           const weatherData = await this.getWeatherData(user.discord.notificationCity);
           const embed = this.createWeatherEmbed(weatherData);
 
-          // Convert EmbedBuilder to JSON object for webhook
-          const embedJson = embed.toJSON();
-
-          // Send notification via Webhook
-          await axios.post(user.discord.webhookUrl, {
+          // Send notification to user's DM or channel
+          const channel = await this.client.channels.fetch(user.discord.channelId);
+          await channel.send({
             content: `🌤️ **Hourly Weather Update for ${user.discord.notificationCity}**`,
-            embeds: [embedJson]
+            embeds: [embed]
           });
 
           // Update last notification time
           user.discord.lastNotification = new Date();
           await user.save();
 
-          console.log(`✓ Sent hourly webhook to ${user.username} for ${user.discord.notificationCity}`);
+          console.log(`✓ Sent hourly notification to ${user.username} for ${user.discord.notificationCity}`);
         } catch (error) {
-          console.error(`✗ Error sending webhook to ${user.username}:`, error.message);
+          console.error(`✗ Error sending notification to ${user.username}:`, error.message);
         }
       }
     } catch (error) {
@@ -440,27 +437,25 @@ class WeatherDiscordBot {
     try {
       const subscribedUsers = await User.find({
         'discord.subscribed': true,
-        'discord.webhookUrl': { $exists: true }
+        'discord.userId': { $exists: true }
       });
 
-      console.log(`Found ${subscribedUsers.length} subscribed users for daily summary (via Webhook)`);
+      console.log(`Found ${subscribedUsers.length} subscribed users for daily summary`);
 
       for (const user of subscribedUsers) {
         try {
           const forecastData = await this.getForecastData(user.discord.notificationCity);
           const embed = this.createForecastEmbed(forecastData);
 
-          // Convert EmbedBuilder to JSON object for webhook
-          const embedJson = embed.toJSON();
-
-          await axios.post(user.discord.webhookUrl, {
+          const channel = await this.client.channels.fetch(user.discord.channelId);
+          await channel.send({
             content: `🌅 **Daily Weather Summary for ${user.discord.notificationCity}**`,
-            embeds: [embedJson]
+            embeds: [embed]
           });
 
-          console.log(`✓ Sent daily summary webhook to ${user.username} for ${user.discord.notificationCity}`);
+          console.log(`✓ Sent daily summary to ${user.username} for ${user.discord.notificationCity}`);
         } catch (error) {
-          console.error(`✗ Error sending daily summary webhook to ${user.username}:`, error.message);
+          console.error(`✗ Error sending daily summary to ${user.username}:`, error.message);
         }
       }
     } catch (error) {
