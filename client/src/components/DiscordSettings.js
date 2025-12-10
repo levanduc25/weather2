@@ -77,8 +77,8 @@ const Button = styled.button`
   justify-content: center;
   gap: 10px;
   padding: 14px 24px;
-  background: ${props => props.variant === 'primary' 
-    ? 'linear-gradient(135deg, #5865F2 0%, #7289DA 100%)' 
+  background: ${props => props.variant === 'primary'
+    ? 'linear-gradient(135deg, #5865F2 0%, #7289DA 100%)'
     : 'var(--transparent-bg)'};
   border: 1px solid var(--border-color);
   border-radius: 12px;
@@ -89,15 +89,15 @@ const Button = styled.button`
   transition: all 0.3s ease;
   margin-right: 10px;
   margin-bottom: 10px;
-  box-shadow: ${props => props.variant === 'primary' 
-    ? '0 4px 15px rgba(88, 101, 242, 0.4)' 
+  box-shadow: ${props => props.variant === 'primary'
+    ? '0 4px 15px rgba(88, 101, 242, 0.4)'
     : 'none'};
 
   &:hover {
     transform: translateY(-2px);
-    box-shadow: ${props => props.variant === 'primary' 
-      ? '0 6px 20px rgba(88, 101, 242, 0.6)' 
-      : 'var(--shadow-sm)'};
+    box-shadow: ${props => props.variant === 'primary'
+    ? '0 6px 20px rgba(88, 101, 242, 0.6)'
+    : 'var(--shadow-sm)'};
   }
 
   &:disabled {
@@ -216,8 +216,7 @@ const DiscordSettings = () => {
     lastNotification: null
   });
   const [loading, setLoading] = useState(false);
-  const [discordUserId, setDiscordUserId] = useState('');
-  const [serverId, setServerId] = useState('');
+  const [webhookUrl, setWebhookUrl] = useState('');
   const [notificationCity, setNotificationCity] = useState('');
   const [showConnectForm, setShowConnectForm] = useState(false);
   const { searchCities } = useWeather();
@@ -237,51 +236,24 @@ const DiscordSettings = () => {
   };
 
   const handleConnectDiscord = async () => {
-    if (!discordUserId || !serverId) {
-      toast.error('Please enter Discord User ID and Server ID');
+    if (!webhookUrl) {
+      toast.error('Please enter a Webhook URL');
       return;
     }
 
     try {
       setLoading(true);
       const response = await api.post('/discord/connect', {
-        discordUserId,
-        serverId
+        webhookUrl
       });
-      
-      toast.success('Discord account connected successfully!');
-      
-      // Show invite URL if provided
-      if (response.data.inviteUrl) {
-        toast((t) => (
-          <div>
-            <p>Make sure the bot is in your server!</p>
-            <a 
-              href={response.data.inviteUrl} 
-              target="_blank" 
-              rel="noopener noreferrer"
-              style={{
-                display: 'inline-block',
-                marginTop: '8px',
-                padding: '8px 16px',
-                background: '#5865F2',
-                color: 'white',
-                borderRadius: '4px',
-                textDecoration: 'none'
-              }}
-            >
-              Add Bot to Server
-            </a>
-          </div>
-        ), { duration: 5000 });
-      }
 
-      setDiscordUserId('');
-      setServerId('');
+      toast.success('Discord Webhook connected successfully!');
+
+      setWebhookUrl('');
       setShowConnectForm(false);
       await loadDiscordStatus();
     } catch (error) {
-      const message = error.response?.data?.message || 'Failed to connect Discord account';
+      const message = error.response?.data?.message || 'Failed to connect Webhook';
       toast.error(message);
     } finally {
       setLoading(false);
@@ -301,7 +273,7 @@ const DiscordSettings = () => {
         lat: 0, // This would be fetched from weather API
         lon: 0  // This would be fetched from weather API
       });
-      
+
       toast.success('Subscribed to Discord notifications!');
       await loadDiscordStatus();
     } catch (error) {
@@ -314,9 +286,9 @@ const DiscordSettings = () => {
 
   const handleUnsubscribe = async () => {
     try {
-  setLoading(true);
-  await api.post('/discord/unsubscribe');
-      
+      setLoading(true);
+      await api.post('/discord/unsubscribe');
+
       toast.success('Unsubscribed from Discord notifications');
       await loadDiscordStatus();
     } catch (error) {
@@ -338,7 +310,7 @@ const DiscordSettings = () => {
       await api.put('/discord/update-city', {
         city: notificationCity
       });
-      
+
       toast.success('Notification city updated!');
       await loadDiscordStatus();
     } catch (error) {
@@ -408,36 +380,31 @@ const DiscordSettings = () => {
           {showConnectForm && (
             <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 0.05 }}>
               <div style={{ background: 'rgba(255, 255, 255, 0.05)', padding: '25px', borderRadius: '15px', border: '1px solid rgba(88, 101, 242, 0.2)', marginTop: 16 }}>
-                <Label style={{ fontSize: '1.1rem', marginBottom: '20px' }}>🔗 Connect your Discord Account</Label>
+                <Label style={{ fontSize: '1.1rem', marginBottom: '20px' }}>🔗 Connect via Webhook</Label>
+                <div style={{ marginBottom: '20px', fontSize: '0.9rem', color: 'var(--text-color)', opacity: 0.8, lineHeight: '1.6' }}>
+                  To get notifications directly to your Discord server channel:
+                  <ol style={{ marginLeft: '20px', marginTop: '10px' }}>
+                    <li>Go to your Discord Server Settings {'>'} Integrations {'>'} Webhooks</li>
+                    <li>Click "New Webhook"</li>
+                    <li>Copy the "Webhook URL" and paste it below</li>
+                  </ol>
+                </div>
+
                 <Input
                   type="text"
-                  placeholder="Enter your Discord User ID"
-                  value={discordUserId}
-                  onChange={(e) => setDiscordUserId(e.target.value)}
+                  placeholder="Enter Discord Webhook URL (https://discord.com/api/webhooks/...)"
+                  value={webhookUrl}
+                  onChange={(e) => setWebhookUrl(e.target.value)}
                 />
-                <p style={{ fontSize: '0.85rem', color: 'var(--muted-color)', marginBottom: '15px' }}>
-                  How to find your Discord User ID? Enable Developer Mode (User Settings → Advanced → Developer Mode) then Right-click on your profile and select "Copy User ID"
-                </p>
-                
-                <Label>Discord Server ID</Label>
-                <Input
-                  type="text"
-                  placeholder="Discord Server ID"
-                  value={serverId}
-                  onChange={(e) => setServerId(e.target.value)}
-                />
-                <p style={{ fontSize: '0.85rem', color: 'var(--muted-color)', marginBottom: '15px' }}>
-                  How to find your Server ID? Right-click on the server name and select "Copy Server ID" (need Developer Mode enabled)
-                </p>
-                
+
                 <div style={{ display: 'flex', gap: 8 }}>
-                  <Button 
-                    variant="primary" 
+                  <Button
+                    variant="primary"
                     onClick={handleConnectDiscord}
                     disabled={loading}
                   >
                     <FaDiscord style={{ fontSize: '1.2rem' }} />
-                    Connect Discord Account
+                    Connect Webhook
                   </Button>
                   <Button onClick={() => setShowConnectForm(false)}>Cancel</Button>
                 </div>
@@ -450,7 +417,7 @@ const DiscordSettings = () => {
           <h4 style={{ color: 'var(--text-color)', marginBottom: '20px', fontSize: '1.1rem' }}>
             Notification Settings
           </h4>
-          
+
           <SettingRow>
             <SettingLabel>Hourly Weather Updates</SettingLabel>
             <ToggleButton
@@ -468,9 +435,9 @@ const DiscordSettings = () => {
                 value={notificationCity}
                 onChange={(e) => setNotificationCity(e.target.value)}
               />
-              
-              <Button 
-                variant="primary" 
+
+              <Button
+                variant="primary"
                 onClick={handleUpdateCity}
                 disabled={loading}
               >
@@ -481,8 +448,8 @@ const DiscordSettings = () => {
           )}
 
           <div style={{ marginTop: '20px' }}>
-            <Button 
-              variant="primary" 
+            <Button
+              variant="primary"
               onClick={discordStatus.subscribed ? handleUnsubscribe : handleSubscribe}
               disabled={loading}
             >

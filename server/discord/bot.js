@@ -70,12 +70,12 @@ class WeatherDiscordBot {
         }
       } catch (error) {
         console.error('Error handling command:', error);
-        
+
         // Kiểm tra xem đã reply chưa
         if (!interaction.replied && !interaction.deferred) {
-          await interaction.reply({ 
-            content: 'An error occurred while processing your command.', 
-            ephemeral: true 
+          await interaction.reply({
+            content: 'An error occurred while processing your command.',
+            ephemeral: true
           });
         }
       }
@@ -143,17 +143,17 @@ class WeatherDiscordBot {
 
   async handleWeatherCommand(interaction) {
     const city = interaction.options.getString('city');
-    
+
     try {
       const weatherData = await this.getWeatherData(city);
       const embed = this.createWeatherEmbed(weatherData);
-      
+
       await interaction.reply({ embeds: [embed] });
     } catch (error) {
       console.error('Weather command error:', error);
-      await interaction.reply({ 
-        content: `Could not find weather data for ${city}. Please check the city name.`, 
-        ephemeral: true 
+      await interaction.reply({
+        content: `Could not find weather data for ${city}. Please check the city name.`,
+        ephemeral: true
       });
     }
   }
@@ -170,7 +170,7 @@ class WeatherDiscordBot {
       // Find user by email and update Discord info
       const user = await User.findOne({ email });
       if (!user) {
-        await interaction.editReply({ 
+        await interaction.editReply({
           content: 'User not found. Please make sure you have an account in the weather app with that email.'
         });
         return;
@@ -178,7 +178,7 @@ class WeatherDiscordBot {
 
       // Get weather data to verify city exists
       const weatherData = await this.getWeatherData(city);
-      
+
       // Update user with Discord info and notification preferences
       user.discord = {
         userId: discordUserId,
@@ -204,11 +204,11 @@ class WeatherDiscordBot {
       await interaction.editReply({ embeds: [embed] });
     } catch (error) {
       console.error('Subscribe error:', error);
-      
-      const errorMessage = error.response?.status === 404 
+
+      const errorMessage = error.response?.status === 404
         ? `Could not find weather data for "${city}". Please check the city name.`
         : 'Error subscribing to notifications. Please try again later.';
-      
+
       if (interaction.deferred) {
         await interaction.editReply({ content: errorMessage });
       } else {
@@ -223,9 +223,9 @@ class WeatherDiscordBot {
     try {
       const user = await User.findOne({ 'discord.userId': discordUserId });
       if (!user || !user.discord?.subscribed) {
-        await interaction.reply({ 
-          content: 'You are not subscribed to weather notifications.', 
-          ephemeral: true 
+        await interaction.reply({
+          content: 'You are not subscribed to weather notifications.',
+          ephemeral: true
         });
         return;
       }
@@ -234,32 +234,32 @@ class WeatherDiscordBot {
       user.discord.notificationCity = null;
       await user.save();
 
-      await interaction.reply({ 
-        content: '✅ Successfully unsubscribed from weather notifications.', 
-        ephemeral: true 
+      await interaction.reply({
+        content: '✅ Successfully unsubscribed from weather notifications.',
+        ephemeral: true
       });
     } catch (error) {
       console.error('Unsubscribe error:', error);
-      await interaction.reply({ 
-        content: 'Error unsubscribing from notifications.', 
-        ephemeral: true 
+      await interaction.reply({
+        content: 'Error unsubscribing from notifications.',
+        ephemeral: true
       });
     }
   }
 
   async handleForecastCommand(interaction) {
     const city = interaction.options.getString('city');
-    
+
     try {
       const forecastData = await this.getForecastData(city);
       const embed = this.createForecastEmbed(forecastData);
-      
+
       await interaction.reply({ embeds: [embed] });
     } catch (error) {
       console.error('Forecast command error:', error);
-      await interaction.reply({ 
-        content: `Could not find forecast data for ${city}. Please check the city name.`, 
-        ephemeral: true 
+      await interaction.reply({
+        content: `Could not find forecast data for ${city}. Please check the city name.`,
+        ephemeral: true
       });
     }
   }
@@ -337,7 +337,7 @@ class WeatherDiscordBot {
     forecastData.list.forEach(item => {
       const date = new Date(item.dt * 1000);
       const dateKey = date.toDateString();
-      
+
       if (!dailyForecast[dateKey]) {
         dailyForecast[dateKey] = {
           date: date,
@@ -345,7 +345,7 @@ class WeatherDiscordBot {
           weather: item.weather[0]
         };
       }
-      
+
       dailyForecast[dateKey].temps.push(item.main.temp);
     });
 
@@ -353,10 +353,10 @@ class WeatherDiscordBot {
     Object.values(dailyForecast).slice(0, 5).forEach(day => {
       const minTemp = Math.round(Math.min(...day.temps));
       const maxTemp = Math.round(Math.max(...day.temps));
-      const dateStr = day.date.toLocaleDateString('en-US', { 
-        weekday: 'short', 
-        month: 'short', 
-        day: 'numeric' 
+      const dateStr = day.date.toLocaleDateString('en-US', {
+        weekday: 'short',
+        month: 'short',
+        day: 'numeric'
       });
 
       embed.addFields({
@@ -400,32 +400,35 @@ class WeatherDiscordBot {
 
   async sendHourlyNotifications() {
     try {
-      const subscribedUsers = await User.find({ 
+      // Find users who have subscribed and have a webhook URL
+      const subscribedUsers = await User.find({
         'discord.subscribed': true,
-        'discord.userId': { $exists: true }
+        'discord.webhookUrl': { $exists: true }
       });
 
-      console.log(`Found ${subscribedUsers.length} subscribed users`);
+      console.log(`Found ${subscribedUsers.length} subscribed users (via Webhook)`);
 
       for (const user of subscribedUsers) {
         try {
           const weatherData = await this.getWeatherData(user.discord.notificationCity);
           const embed = this.createWeatherEmbed(weatherData);
-          
-          // Send notification to user's DM or channel
-          const channel = await this.client.channels.fetch(user.discord.channelId);
-          await channel.send({ 
+
+          // Convert EmbedBuilder to JSON object for webhook
+          const embedJson = embed.toJSON();
+
+          // Send notification via Webhook
+          await axios.post(user.discord.webhookUrl, {
             content: `🌤️ **Hourly Weather Update for ${user.discord.notificationCity}**`,
-            embeds: [embed] 
+            embeds: [embedJson]
           });
 
           // Update last notification time
           user.discord.lastNotification = new Date();
           await user.save();
 
-          console.log(`✓ Sent hourly notification to ${user.username} for ${user.discord.notificationCity}`);
+          console.log(`✓ Sent hourly webhook to ${user.username} for ${user.discord.notificationCity}`);
         } catch (error) {
-          console.error(`✗ Error sending notification to ${user.username}:`, error.message);
+          console.error(`✗ Error sending webhook to ${user.username}:`, error.message);
         }
       }
     } catch (error) {
@@ -435,27 +438,29 @@ class WeatherDiscordBot {
 
   async sendDailySummary() {
     try {
-      const subscribedUsers = await User.find({ 
+      const subscribedUsers = await User.find({
         'discord.subscribed': true,
-        'discord.userId': { $exists: true }
+        'discord.webhookUrl': { $exists: true }
       });
 
-      console.log(`Found ${subscribedUsers.length} subscribed users for daily summary`);
+      console.log(`Found ${subscribedUsers.length} subscribed users for daily summary (via Webhook)`);
 
       for (const user of subscribedUsers) {
         try {
           const forecastData = await this.getForecastData(user.discord.notificationCity);
           const embed = this.createForecastEmbed(forecastData);
-          
-          const channel = await this.client.channels.fetch(user.discord.channelId);
-          await channel.send({ 
+
+          // Convert EmbedBuilder to JSON object for webhook
+          const embedJson = embed.toJSON();
+
+          await axios.post(user.discord.webhookUrl, {
             content: `🌅 **Daily Weather Summary for ${user.discord.notificationCity}**`,
-            embeds: [embed] 
+            embeds: [embedJson]
           });
 
-          console.log(`✓ Sent daily summary to ${user.username} for ${user.discord.notificationCity}`);
+          console.log(`✓ Sent daily summary webhook to ${user.username} for ${user.discord.notificationCity}`);
         } catch (error) {
-          console.error(`✗ Error sending daily summary to ${user.username}:`, error.message);
+          console.error(`✗ Error sending daily summary webhook to ${user.username}:`, error.message);
         }
       }
     } catch (error) {

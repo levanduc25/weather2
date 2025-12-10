@@ -15,86 +15,65 @@ const isValidDiscordId = (id) => {
 const getDiscordInviteUrl = (serverId) => {
   const botId = process.env.DISCORD_BOT_ID;
   const permissions = '268435456'; // Administrator permission
-  const redirectUri = encodeURIComponent(process.env.DISCORD_REDIRECT_URI );
+  const redirectUri = encodeURIComponent(process.env.DISCORD_REDIRECT_URI);
   return `https://discord.com/api/oauth2/authorize?client_id=${botId}&permissions=${permissions}&guild_id=${serverId}&scope=bot&redirect_uri=${redirectUri}&response_type=code`;
 };
 
 // @route   POST /api/discord/connect
-// @desc    Connect Discord account to user and add bot to server
+// @desc    Connect Discord Webhook
 // @access  Private
 router.post('/connect', auth, [
-  body('discordUserId').notEmpty().withMessage('Discord User ID is required'),
-  body('serverId').notEmpty().withMessage('Server ID (Guild ID) is required')
+  body('webhookUrl').notEmpty().withMessage('Webhook URL is required')
+    .matches(/^https:\/\/discord\.com\/api\/webhooks\/\d+\/[\w-]+$/)
+    .withMessage('Invalid Discord Webhook URL format')
 ], async (req, res) => {
   try {
     const errors = validationResult(req);
     if (!errors.isEmpty()) {
-      return res.status(400).json({ 
+      return res.status(400).json({
         message: 'Validation failed',
         errors: errors.array()
       });
     }
 
-    const { discordUserId, serverId } = req.body;
+    const { webhookUrl } = req.body;
 
-    // Validate Discord IDs format
-    if (!isValidDiscordId(discordUserId)) {
-      return res.status(400).json({ 
-        message: 'Invalid Discord User ID format. Must be 17-19 digits.' 
+    // Verify webhook by sending a test message
+    try {
+      await axios.post(webhookUrl, {
+        content: '✅ Weather App connection successful! You will receive weather notifications here.'
+      });
+    } catch (webhookError) {
+      console.error('Webhook verification failed:', webhookError.response?.data || webhookError.message);
+      return res.status(400).json({
+        message: 'Could not connect to this Webhook URL. Please check if it is valid.'
       });
     }
 
-    if (!isValidDiscordId(serverId)) {
-      return res.status(400).json({ 
-        message: 'Invalid Server ID (Guild ID) format. Must be 17-19 digits.' 
-      });
-    }
-
-    // Try to verify the Discord IDs exist by checking with Discord API (optional)
-    // This requires a valid Discord bot token
-    if (process.env.DISCORD_TOKEN) {
-      try {
-        // Verify guild/server exists
-        const guildResponse = await axios.get(
-          `https://discord.com/api/v10/guilds/${serverId}`,
-          {
-            headers: { Authorization: `Bot ${process.env.DISCORD_TOKEN}` }
-          }
-        );
-
-        if (!guildResponse.data) {
-          return res.status(400).json({ 
-            message: 'Server not found. Make sure the bot is already in the server.' 
-          });
-        }
-      } catch (apiError) {
-        console.warn('Could not verify guild with Discord API:', apiError.message);
-        // Continue anyway - validation may fail due to permissions
-      }
-    }
-
-    // Update user with Discord info
+    // Update user with Webhook info
     req.user.discord = {
-      userId: discordUserId,
-      serverId: serverId,
-      subscribed: false,
+      ...req.user.discord, // Keep existing fields if any
+      webhookUrl: webhookUrl,
+      subscribed: true, // Auto-subscribe on connect
       connectedAt: new Date()
     };
 
+    // If no notification city is set, use first favorite city or default
+    if (!req.user.discord.notificationCity) {
+      if (req.user.favoriteCities && req.user.favoriteCities.length > 0) {
+        req.user.discord.notificationCity = req.user.favoriteCities[0].name;
+      }
+    }
+
     await req.user.save();
 
-    // Generate invite URL in case bot needs to be added manually
-    const inviteUrl = getDiscordInviteUrl(serverId);
-
     res.json({
-      message: 'Discord account connected successfully',
-      discord: req.user.discord,
-      inviteUrl: inviteUrl,
-      note: 'Make sure the bot is in your Discord server. If not, use the invite link provided.'
+      message: 'Discord Webhook connected successfully',
+      discord: req.user.discord
     });
   } catch (error) {
     console.error('Discord connect error:', error);
-    res.status(500).json({ message: 'Failed to connect Discord account' });
+    res.status(500).json({ message: 'Failed to connect Discord Webhook' });
   }
 });
 
@@ -109,7 +88,7 @@ router.post('/subscribe', auth, [
   try {
     const errors = validationResult(req);
     if (!errors.isEmpty()) {
-      return res.status(400).json({ 
+      return res.status(400).json({
         message: 'Validation failed',
         errors: errors.array()
       });
@@ -117,9 +96,9 @@ router.post('/subscribe', auth, [
 
     const { city, lat, lon } = req.body;
 
-    if (!req.user.discord?.userId) {
-      return res.status(400).json({ 
-        message: 'Discord account not connected. Please connect your Discord account first.' 
+    if (!req.user.discord?.webhookUrl) {
+      return res.status(400).json({
+        message: 'Discord Webhook not connected. Please connect your Webhook first.'
       });
     }
 
@@ -146,8 +125,8 @@ router.post('/subscribe', auth, [
 router.post('/unsubscribe', auth, async (req, res) => {
   try {
     if (!req.user.discord?.userId) {
-      return res.status(400).json({ 
-        message: 'Discord account not connected' 
+      return res.status(400).json({
+        message: 'Discord account not connected'
       });
     }
 
@@ -173,7 +152,7 @@ router.post('/unsubscribe', auth, async (req, res) => {
 router.get('/status', auth, async (req, res) => {
   try {
     const discordStatus = {
-      connected: !!req.user.discord?.userId,
+      connected: !!req.user.discord?.webhookUrl,
       subscribed: req.user.discord?.subscribed || false,
       notificationCity: req.user.discord?.notificationCity || null,
       lastNotification: req.user.discord?.lastNotification || null
@@ -197,7 +176,7 @@ router.put('/update-city', auth, [
   try {
     const errors = validationResult(req);
     if (!errors.isEmpty()) {
-      return res.status(400).json({ 
+      return res.status(400).json({
         message: 'Validation failed',
         errors: errors.array()
       });
@@ -206,14 +185,14 @@ router.put('/update-city', auth, [
     const { city } = req.body;
 
     if (!req.user.discord?.userId) {
-      return res.status(400).json({ 
-        message: 'Discord account not connected' 
+      return res.status(400).json({
+        message: 'Discord account not connected'
       });
     }
 
     if (!req.user.discord.subscribed) {
-      return res.status(400).json({ 
-        message: 'Not subscribed to notifications' 
+      return res.status(400).json({
+        message: 'Not subscribed to notifications'
       });
     }
 
