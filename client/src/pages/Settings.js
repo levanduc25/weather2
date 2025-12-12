@@ -4,6 +4,7 @@ import { motion } from 'framer-motion';
 import { FiToggleLeft, FiToggleRight, FiSave, FiX } from 'react-icons/fi';
 import { useTheme } from '../contexts/ThemeContext';
 import { useNavigate } from 'react-router-dom';
+import axios from 'axios';
 
 const SettingsContainer = styled.div`
   padding: 100px 20px 40px 20px;
@@ -126,30 +127,6 @@ const SettingDescription = styled.p`
   margin: 5px 0 0 0;
 `;
 
-const InputField = styled.input`
-  width: 100%;
-  padding: 12px 16px;
-  border: 1px solid var(--border-color);
-  border-radius: 8px;
-  background: var(--transparent-bg);
-  color: var(--text-color);
-  font-size: 1rem;
-  transition: all var(--transition-fast);
-  font-family: inherit;
-
-  &::placeholder {
-    color: var(--text-color);
-    opacity: 0.5;
-  }
-
-  &:focus {
-    outline: none;
-    border-color: var(--primary-accent);
-    background: var(--card-background);
-    box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
-  }
-`;
-
 const ToggleSwitch = styled.button`
   position: relative;
   display: inline-flex;
@@ -215,22 +192,28 @@ const SaveButton = styled.button`
   &:active {
     transform: translateY(0);
   }
+
+  &:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+  }
 `;
 
 const Settings = () => {
   const navigate = useNavigate();
   const { theme, toggleTheme } = useTheme();
-  const [discordWebhook, setDiscordWebhook] = useState('');
   const [notificationsEnabled, setNotificationsEnabled] = useState(false);
   const [notificationTime, setNotificationTime] = useState('09:00');
   const [saveMessage, setSaveMessage] = useState('');
+  const [isSaving, setIsSaving] = useState(false);
+  const [userEmail, setUserEmail] = useState('');
 
   useEffect(() => {
-    const storedWebhook = localStorage.getItem('discordWebhook');
-    if (storedWebhook) {
-      setDiscordWebhook(storedWebhook);
-    }
+    // Load user data from localStorage
+    const user = JSON.parse(localStorage.getItem('user') || '{}');
+    setUserEmail(user.email || '');
 
+    // Load notification settings from localStorage
     const storedNotificationsEnabled = localStorage.getItem('notificationsEnabled');
     if (storedNotificationsEnabled !== null) {
       setNotificationsEnabled(JSON.parse(storedNotificationsEnabled));
@@ -240,18 +223,34 @@ const Settings = () => {
     if (storedNotificationTime) {
       setNotificationTime(storedNotificationTime);
     }
+
+    // Fetch user settings from server if logged in
+    if (user.email) {
+      fetchUserSettings();
+    }
   }, []);
 
-  const handleWebhookChange = (e) => {
-    const { value } = e.target;
-    setDiscordWebhook(value);
-    localStorage.setItem('discordWebhook', value);
+  const fetchUserSettings = async () => {
+    try {
+      const token = localStorage.getItem('token');
+      const response = await axios.get('http://localhost:5000/api/user/settings', {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+
+      if (response.data.discord) {
+        setNotificationsEnabled(response.data.discord.subscribed || false);
+        setNotificationTime(response.data.discord.notificationTime || '09:00');
+      }
+    } catch (error) {
+      console.error('Error fetching user settings:', error);
+    }
   };
 
   const handleNotificationsToggle = () => {
     setNotificationsEnabled((prev) => {
-      localStorage.setItem('notificationsEnabled', JSON.stringify(!prev));
-      return !prev;
+      const newValue = !prev;
+      localStorage.setItem('notificationsEnabled', JSON.stringify(newValue));
+      return newValue;
     });
   };
 
@@ -261,9 +260,40 @@ const Settings = () => {
     localStorage.setItem('notificationTime', value);
   };
 
-  const handleSave = () => {
-    setSaveMessage('Settings saved successfully!');
-    setTimeout(() => setSaveMessage(''), 2000);
+  const handleSave = async () => {
+    setIsSaving(true);
+    setSaveMessage('');
+
+    try {
+      const token = localStorage.getItem('token');
+      
+      if (!token) {
+        setSaveMessage('Please log in to save settings');
+        setIsSaving(false);
+        return;
+      }
+
+      // Save settings to server
+      await axios.put(
+        'http://localhost:5000/api/user/settings',
+        {
+          notificationsEnabled,
+          notificationTime
+        },
+        {
+          headers: { Authorization: `Bearer ${token}` }
+        }
+      );
+
+      setSaveMessage('Settings saved successfully!');
+      setTimeout(() => setSaveMessage(''), 3000);
+    } catch (error) {
+      console.error('Error saving settings:', error);
+      setSaveMessage('Error saving settings. Please try again.');
+      setTimeout(() => setSaveMessage(''), 3000);
+    } finally {
+      setIsSaving(false);
+    }
   };
 
   return (
@@ -311,7 +341,7 @@ const Settings = () => {
             <div>
               <SettingLabel>Enable Notifications</SettingLabel>
               <SettingDescription>
-                Receive daily weather updates
+                Receive daily weather updates at your preferred time
               </SettingDescription>
             </div>
             <ToggleSwitch
@@ -332,7 +362,7 @@ const Settings = () => {
               <div>
                 <SettingLabel>Notification Time</SettingLabel>
                 <SettingDescription>
-                  Choose when you want to receive notifications
+                  Choose when you want to receive daily weather notifications
                 </SettingDescription>
               </div>
               <TimeInput
@@ -343,31 +373,9 @@ const Settings = () => {
             </SettingItem>
           )}
         </SettingGroup>
-
-        <h2>💬 Integrations</h2>
-        <SettingGroup>
-          <SettingItem
-            whileHover={{ scale: 1.01 }}
-            whileTap={{ scale: 0.99 }}
-          >
-            <div style={{ width: '100%' }}>
-              <SettingLabel>Discord Webhook URL</SettingLabel>
-              <SettingDescription>
-                Get weather updates in your Discord server
-              </SettingDescription>
-              <InputField
-                type="text"
-                placeholder="https://discord.com/api/webhooks/..."
-                value={discordWebhook}
-                onChange={handleWebhookChange}
-                style={{ marginTop: '10px' }}
-              />
-            </div>
-          </SettingItem>
-        </SettingGroup>
-
-        <SaveButton onClick={handleSave}>
-          <FiSave /> Save All Settings
+        
+        <SaveButton onClick={handleSave} disabled={isSaving}>
+          <FiSave /> {isSaving ? 'Saving...' : 'Save All Settings'}
         </SaveButton>
 
         {saveMessage && (
@@ -378,7 +386,7 @@ const Settings = () => {
             style={{
               marginTop: '15px',
               padding: '12px 16px',
-              background: 'var(--success-color)',
+              background: saveMessage.includes('Error') ? '#dc3545' : 'var(--success-color)',
               color: 'white',
               borderRadius: '8px',
               textAlign: 'center',

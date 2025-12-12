@@ -63,14 +63,14 @@ const userSchema = new mongoose.Schema(
     banned: {
       type: Boolean,
       default: false,
-      index: true
+      index: true,
     },
     // User role (for role-based access control)
     role: {
       type: String,
-      enum: ['user', 'admin'],
-      default: 'user',
-      index: true
+      enum: ["user", "admin"],
+      default: "user",
+      index: true,
     },
     verificationToken: String,
     verificationExpires: Date,
@@ -147,12 +147,10 @@ const userSchema = new mongoose.Schema(
     discord: {
       userId: String,
       channelId: String,
-      subscribed: {
-        type: Boolean,
-        default: false,
-      },
+      subscribed: { type: Boolean, default: false },
       notificationCity: String,
       lastNotification: Date,
+      notificationTime: { type: String, default: "09:00" }, // THÊM DÒNG NÀY
     },
   },
   {

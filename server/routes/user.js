@@ -2,7 +2,7 @@ const express = require('express');
 const { body, validationResult } = require('express-validator');
 const auth = require('../middleware/auth');
 const userService = require('../services/userService');
-
+const User = require('../models/User');
 const router = express.Router();
 
 // @route   POST /api/user/favorites
@@ -155,7 +155,45 @@ router.put('/preferences', auth, [
     res.status(500).json({ message: 'Failed to update preferences' });
   }
 });
+// GET user settings
+router.get('/settings', auth, async (req, res) => {
+  try {
+    const user = await User.findById(req.user.id).select('-password');
+    res.json({
+      discord: user.discord,
+      email: user.email
+    });
+  } catch (error) {
+    console.error('Error fetching settings:', error);
+    res.status(500).json({ message: 'Server error' });
+  }
+});
 
+// UPDATE user settings
+router.put('/settings', auth, async (req, res) => {
+  try {
+    const { notificationsEnabled, notificationTime } = req.body;
+    
+    const user = await User.findById(req.user.id);
+    
+    if (!user.discord) {
+      user.discord = {};
+    }
+    
+    user.discord.subscribed = notificationsEnabled;
+    user.discord.notificationTime = notificationTime;
+    
+    await user.save();
+    
+    res.json({ 
+      message: 'Settings updated successfully',
+      discord: user.discord 
+    });
+  } catch (error) {
+    console.error('Error updating settings:', error);
+    res.status(500).json({ message: 'Server error' });
+  }
+});
 // @route   PUT /api/user/last-location
 // @desc    Update user's last location
 // @access  Private

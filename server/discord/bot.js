@@ -4,16 +4,13 @@ const axios = require('axios');
 const mongoose = require('mongoose');
 require('dotenv').config();
 
-// Import User model
 const User = require('../models/User');
 
 class WeatherDiscordBot {
   constructor() {
-    // THÊM KIỂM TRA BIẾN MÔI TRƯỜNG
     this.clientId = process.env.DISCORD_CLIENT_ID || process.env.DISCORD_BOT_ID;
     this.token = process.env.DISCORD_TOKEN;
 
-    // Kiểm tra các biến bắt buộc
     if (!this.clientId) {
       throw new Error('DISCORD_CLIENT_ID or DISCORD_BOT_ID not found in environment variables');
     }
@@ -22,7 +19,6 @@ class WeatherDiscordBot {
       throw new Error('DISCORD_TOKEN not found in environment variables');
     }
 
-    // Log để debug
     console.log('Discord Client ID:', this.clientId);
     console.log('Discord Token:', this.token ? '✓ Token loaded' : '✗ Token missing');
 
@@ -40,7 +36,6 @@ class WeatherDiscordBot {
   }
 
   setupEventHandlers() {
-    // SỬA: Đổi 'ready' thành 'clientReady' để tránh warning
     this.client.once('clientReady', () => {
       console.log(`Discord bot logged in as ${this.client.user.tag}!`);
       this.registerSlashCommands();
@@ -71,7 +66,6 @@ class WeatherDiscordBot {
       } catch (error) {
         console.error('Error handling command:', error);
 
-        // Kiểm tra xem đã reply chưa
         if (!interaction.replied && !interaction.deferred) {
           await interaction.reply({
             content: 'An error occurred while processing your command.',
@@ -95,7 +89,7 @@ class WeatherDiscordBot {
 
       new SlashCommandBuilder()
         .setName('subscribe')
-        .setDescription('Subscribe to hourly weather notifications')
+        .setDescription('Subscribe to daily weather notifications')
         .addStringOption(option =>
           option.setName('city')
             .setDescription('City name for notifications')
@@ -105,6 +99,11 @@ class WeatherDiscordBot {
           option.setName('email')
             .setDescription('The email you used to register for the weather app')
             .setRequired(true)
+        )
+        .addStringOption(option =>
+          option.setName('time')
+            .setDescription('Notification time (HH:MM format, e.g., 09:00)')
+            .setRequired(false)
         ),
 
       new SlashCommandBuilder()
@@ -128,7 +127,6 @@ class WeatherDiscordBot {
     try {
       console.log('Started refreshing application (/) commands.');
 
-      // SỬA: Dùng this.clientId thay vì process.env.DISCORD_CLIENT_ID
       await rest.put(
         Routes.applicationCommands(this.clientId),
         { body: this.commands }
@@ -137,7 +135,7 @@ class WeatherDiscordBot {
       console.log('Successfully reloaded application (/) commands.');
     } catch (error) {
       console.error('Error registering commands:', error);
-      throw error; // Re-throw để dừng bot nếu không đăng ký được commands
+      throw error;
     }
   }
 
@@ -161,13 +159,21 @@ class WeatherDiscordBot {
   async handleSubscribeCommand(interaction) {
     const city = interaction.options.getString('city');
     const email = interaction.options.getString('email');
+    const time = interaction.options.getString('time') || '09:00';
     const discordUserId = interaction.user.id;
 
     try {
-      // Defer reply for long operations
       await interaction.deferReply({ ephemeral: true });
 
-      // Find user by email and update Discord info
+      // Validate time format
+      const timeRegex = /^([0-1]?[0-9]|2[0-3]):[0-5][0-9]$/;
+      if (!timeRegex.test(time)) {
+        await interaction.editReply({
+          content: 'Invalid time format. Please use HH:MM format (e.g., 09:00, 14:30)'
+        });
+        return;
+      }
+
       const user = await User.findOne({ email });
       if (!user) {
         await interaction.editReply({
@@ -176,30 +182,32 @@ class WeatherDiscordBot {
         return;
       }
 
-      // Get weather data to verify city exists
       const weatherData = await this.getWeatherData(city);
 
-      // Update user with Discord info and notification preferences
       user.discord = {
         userId: discordUserId,
         channelId: interaction.channelId,
         subscribed: true,
         notificationCity: city,
+        notificationTime: time,
         lastNotification: null
       };
 
       await user.save();
 
+      console.log(`✓ User ${user.username} subscribed to ${city} at ${time}`);
+
       const embed = new EmbedBuilder()
         .setTitle('🌤️ Weather Notifications Subscribed!')
-        .setDescription(`You will now receive hourly weather updates for **${city}**`)
+        .setDescription(`You will now receive daily weather updates for **${city}** at **${time}**`)
         .addFields(
           { name: 'Current Weather', value: `${weatherData.temperature}°C - ${weatherData.description}`, inline: true },
           { name: 'Humidity', value: `${weatherData.humidity}%`, inline: true },
           { name: 'Wind Speed', value: `${weatherData.windSpeed} km/h`, inline: true }
         )
         .setColor(0x00AE86)
-        .setTimestamp();
+        .setTimestamp()
+        .setFooter({ text: 'You can change the notification time in Settings' });
 
       await interaction.editReply({ embeds: [embed] });
     } catch (error) {
@@ -232,6 +240,7 @@ class WeatherDiscordBot {
 
       user.discord.subscribed = false;
       user.discord.notificationCity = null;
+      user.discord.notificationTime = '09:00';
       await user.save();
 
       await interaction.reply({
@@ -280,7 +289,7 @@ class WeatherDiscordBot {
       temperature: Math.round(data.main.temp),
       feelsLike: Math.round(data.main.feels_like),
       humidity: data.main.humidity,
-      windSpeed: Math.round(data.wind.speed * 3.6), // Convert m/s to km/h
+      windSpeed: Math.round(data.wind.speed * 3.6),
       description: data.weather[0].description,
       icon: data.weather[0].icon,
       main: data.weather[0].main
@@ -332,7 +341,6 @@ class WeatherDiscordBot {
       .setTimestamp()
       .setFooter({ text: 'Weather Bot • Powered by OpenWeatherMap' });
 
-    // Group forecast by day
     const dailyForecast = {};
     forecastData.list.forEach(item => {
       const date = new Date(item.dt * 1000);
@@ -349,7 +357,6 @@ class WeatherDiscordBot {
       dailyForecast[dateKey].temps.push(item.main.temp);
     });
 
-    // Add daily forecast to embed
     Object.values(dailyForecast).slice(0, 5).forEach(day => {
       const minTemp = Math.round(Math.min(...day.temps));
       const maxTemp = Math.round(Math.max(...day.temps));
@@ -383,94 +390,106 @@ class WeatherDiscordBot {
   }
 
   setupScheduledNotifications() {
-    // Send hourly weather notifications at the top of every hour
-    cron.schedule('0 * * * *', async () => {
-      console.log('Running hourly weather notifications...');
-      await this.sendHourlyNotifications();
+    // Check every minute for users who need notifications
+    cron.schedule('* * * * *', async () => {
+      const now = new Date();
+      const currentTime = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
+      console.log(`[CRON] Checking notifications at ${currentTime}`);
+      await this.checkAndSendNotifications();
     });
 
-    // Send daily weather summary at 8 AM
-    cron.schedule('0 8 * * *', async () => {
-      console.log('Running daily weather summary...');
-      await this.sendDailySummary();
-    });
-
-    console.log('✓ Scheduled notifications set up');
+    console.log('✓ Dynamic scheduled notifications set up (checking every minute)');
   }
 
-  async sendHourlyNotifications() {
+  async checkAndSendNotifications() {
     try {
-      const subscribedUsers = await User.find({
+      const now = new Date();
+      const currentTime = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
+
+      console.log(`[NOTIFICATION CHECK] Current time: ${currentTime}`);
+
+      // Find ALL subscribed users first to debug
+      const allSubscribedUsers = await User.find({
         'discord.subscribed': true,
         'discord.userId': { $exists: true }
       });
 
-      console.log(`Found ${subscribedUsers.length} subscribed users`);
+      console.log(`[DEBUG] Total subscribed users in DB: ${allSubscribedUsers.length}`);
+      
+      // Log all users and their notification times
+      allSubscribedUsers.forEach(user => {
+        console.log(`[DEBUG] User: ${user.username}, Email: ${user.email}, Time: ${user.discord.notificationTime}, City: ${user.discord.notificationCity}`);
+      });
+
+      // Find users who should receive notifications at this time
+      const subscribedUsers = await User.find({
+        'discord.subscribed': true,
+        'discord.userId': { $exists: true },
+        'discord.notificationTime': currentTime
+      });
+
+      console.log(`[NOTIFICATION CHECK] Found ${subscribedUsers.length} users to notify at ${currentTime}`);
+
+      if (subscribedUsers.length === 0) {
+        return;
+      }
 
       for (const user of subscribedUsers) {
         try {
-          const weatherData = await this.getWeatherData(user.discord.notificationCity);
-          const embed = this.createWeatherEmbed(weatherData);
+          console.log(`[PROCESSING] User: ${user.username}, City: ${user.discord.notificationCity}`);
 
-          // Send notification to user's DM or channel
+          // Check if already sent notification today
+          const lastNotification = user.discord.lastNotification;
+          if (lastNotification) {
+            const lastNotifDate = new Date(lastNotification);
+            const isSameDay = lastNotifDate.toDateString() === now.toDateString();
+            
+            if (isSameDay) {
+              console.log(`[SKIP] Already sent notification to ${user.username} today at ${lastNotifDate.toLocaleTimeString()}`);
+              continue;
+            }
+          }
+
+          console.log(`[FETCHING] Weather data for ${user.discord.notificationCity}`);
+          const weatherData = await this.getWeatherData(user.discord.notificationCity);
+          const forecastData = await this.getForecastData(user.discord.notificationCity);
+          
+          const weatherEmbed = this.createWeatherEmbed(weatherData);
+          const forecastEmbed = this.createForecastEmbed(forecastData);
+
+          console.log(`[SENDING] Notification to channel ${user.discord.channelId}`);
           const channel = await this.client.channels.fetch(user.discord.channelId);
+          
           await channel.send({
-            content: `🌤️ **Hourly Weather Update for ${user.discord.notificationCity}**`,
-            embeds: [embed]
+            content: `🌅 **Daily Weather Update for ${user.discord.notificationCity}** (${currentTime})`,
+            embeds: [weatherEmbed, forecastEmbed]
           });
 
-          // Update last notification time
-          user.discord.lastNotification = new Date();
+          user.discord.lastNotification = now;
           await user.save();
 
-          console.log(`✓ Sent hourly notification to ${user.username} for ${user.discord.notificationCity}`);
+          console.log(`✅ Successfully sent notification to ${user.username} for ${user.discord.notificationCity} at ${currentTime}`);
         } catch (error) {
-          console.error(`✗ Error sending notification to ${user.username}:`, error.message);
+          console.error(`❌ Error sending notification to ${user.username}:`, error.message);
+          console.error(error.stack);
         }
       }
     } catch (error) {
-      console.error('Error in hourly notifications:', error);
-    }
-  }
-
-  async sendDailySummary() {
-    try {
-      const subscribedUsers = await User.find({
-        'discord.subscribed': true,
-        'discord.userId': { $exists: true }
-      });
-
-      console.log(`Found ${subscribedUsers.length} subscribed users for daily summary`);
-
-      for (const user of subscribedUsers) {
-        try {
-          const forecastData = await this.getForecastData(user.discord.notificationCity);
-          const embed = this.createForecastEmbed(forecastData);
-
-          const channel = await this.client.channels.fetch(user.discord.channelId);
-          await channel.send({
-            content: `🌅 **Daily Weather Summary for ${user.discord.notificationCity}**`,
-            embeds: [embed]
-          });
-
-          console.log(`✓ Sent daily summary to ${user.username} for ${user.discord.notificationCity}`);
-        } catch (error) {
-          console.error(`✗ Error sending daily summary to ${user.username}:`, error.message);
-        }
-      }
-    } catch (error) {
-      console.error('Error in daily summary:', error);
+      console.error('❌ Error in notification checker:', error);
+      console.error(error.stack);
     }
   }
 
   async start() {
     try {
-      // Connect to MongoDB
       await mongoose.connect(process.env.MONGODB_URI || 'mongodb://localhost:27017/weather-app');
       console.log('✓ Connected to MongoDB');
 
-      // Login to Discord
       await this.client.login(this.token);
+      
+      console.log('✓ Discord bot started successfully');
+      console.log('📍 Server timezone:', Intl.DateTimeFormat().resolvedOptions().timeZone);
+      console.log('🕐 Current server time:', new Date().toLocaleString());
     } catch (error) {
       console.error('✗ Error starting Discord bot:', error);
       process.exit(1);
@@ -478,7 +497,6 @@ class WeatherDiscordBot {
   }
 }
 
-// Start the bot
 const bot = new WeatherDiscordBot();
 bot.start();
 

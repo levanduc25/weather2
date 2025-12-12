@@ -110,11 +110,11 @@ const SuggestionCard = ({ suggestion }) => {
       </Body>
       <Actions>
         {!isReminderSet ? (
-          <Button onClick={() => setReminder(30)}>Nhắc 30 phút</Button>
+          <Button onClick={() => setReminder(30)}>30-minute reminder</Button>
         ) : (
-          <Button onClick={clearReminder}>Huỷ nhắc</Button>
+          <Button onClick={clearReminder}>Cancel reminder</Button>
         )}
-        <Button onClick={() => toast(suggestion.message)}>Xem</Button>
+        <Button onClick={() => toast(suggestion.message)}>View</Button>
       </Actions>
     </Card>
   );
